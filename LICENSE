@@ -1,21 +1,79 @@
-MIT License
+InnoBridge Public License, Version 2.0
 
-Copyright (c) 2025 Yangshun Tay
+Copyright (c) 2025 InnoBridge Technologies and contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Definitions
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+“Software” means the code and related documentation made available under this license.
+“You” / “Your” means the individual or legal entity exercising permissions under this license.
+“Model Provider” means any entity (or its affiliates) whose primary business purpose or a material revenue stream is to develop, train, fine-tune, distill, align, evaluate, host, operate, or sell access to foundation models or other generative AI/LLM/embedding models, or to provide services whose core value is model outputs.
+“Train/Improve” includes pretraining, fine-tuning, domain adaptation, distillation, alignment/safety tuning, RLHF/RLAIF, evaluation/benchmarking used to improve models, dataset/data-pipeline creation or curation for such purposes, inference-time optimization that feeds back into training, or any substantially similar activity.
+“Commercial” means for or directed toward commercial advantage or monetary compensation.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+2. Grant of Permission (MIT-style)
+
+Subject to the conditions below, permission is hereby granted, free of charge, to any person obtaining a copy of the Software to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so.
+
+3. Permitted End-User Commercial Use
+
+End users (including companies whose primary business is not model provision) may build, operate, distribute, and monetize products or services derived from the Software, including products that themselves call third-party AI services, provided they do not act as a Model Provider with respect to those models.
+
+4. Prohibited Uses by Model Providers
+
+Except as expressly permitted in Section 5, Model Providers may not:
+a. use the Software or any derivative works to Train/Improve models;
+b. use the Software to create datasets, evaluation suites, data pipelines, or other assets materially used to Train/Improve models;
+c. incorporate the Software into products or services whose primary purpose is to Train/Improve models for commercial release or sale;
+d. use the Software in any manner designed to circumvent this Section.
+
+This prohibition applies whether or not the resulting models or services directly incorporate the Software’s code.
+
+5. Research Exception (Non-Commercial Academia)
+
+Accredited academic or non-profit research institutions may use the Software to Train/Improve models solely for non-commercial research and publication, provided that (i) any resulting models, datasets, or services are not sold, licensed, or hosted for commercial advantage; and (ii) the Software is acknowledged per Section 7. Use by or for a Model Provider (as contractor, partner, or affiliate) is not covered by this exception.
+
+6. Commercial Exceptions for Model Providers
+
+Model Providers seeking rights beyond Section 4 may request a commercial exception license from InnoBridge Technologies at legal@innobridge.dev
+ (or successor address). Any such exception must be in a signed writing.
+
+7. Attribution & Notice
+
+The above copyright notice and this license text shall be included in all copies or substantial portions of the Software and in documentation for derivative works where practical.
+
+8. Redistribution
+
+Redistributions in source or binary form must retain this license. You may offer warranties, support, or additional terms to your customers for your derivative works, provided they do not purport to alter the rights or obligations of this license for the Software itself.
+
+9. Patents (Limited Grant; Retaliation)
+
+Subject to Sections 4–6, each contributor grants You a perpetual, worldwide, non-exclusive, no-charge, royalty-free patent license to make, use, sell, offer to sell, import, and otherwise practice their contributions as part of the Software.
+If You (or Your affiliate) initiate patent litigation alleging that the Software or a contribution infringes a patent, this patent license terminates as of the filing date.
+
+10. Trademarks
+
+This license does not grant permission to use InnoBridge’s names, logos, or trademarks.
+
+11. Termination
+
+This license terminates automatically if You breach Sections 4 or 7. Upon termination, Your rights under this license cease immediately, but the disclaimers and limitations survive. If You cure a breach within 30 days of notice, Your license is reinstated prospectively at InnoBridge’s discretion.
+
+12. Compliance Assurances
+
+Upon a reasonable, specific, written request alleging a good-faith concern of violation of Section 4, You agree to provide a written assurance describing how You use the Software and confirming compliance. No disclosure of source code, trade secrets, or confidential information is required beyond what is reasonably necessary to address the concern.
+
+13. Warranty Disclaimer
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+14. Limitation of Liability
+
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+15. Severability; No Waiver
+
+If any provision of this license is unenforceable, the remainder remains in effect. Failure to enforce is not a waiver.
+
+16. Entire Agreement; Versioning
+
+This license is the entire agreement concerning the Software’s licensing terms. InnoBridge may publish new versions with a new version number. If no version is specified in Your distribution, this Version 2.0 applies.
