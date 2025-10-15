@@ -29,6 +29,8 @@ Contents moved from `agent.md`:
     - Tool error rates and latencies
     - Model token usage and cost estimate
 
+Note: The "Evaluation & Metrics" section has been moved to `evaluation.md`.
+
 Implementation notes / reminders:
 - Keep the base Agent API minimal. Provide an optional observability plug-in or event-bus integration for heavy telemetry.
 - Prefer persisted traces (separate storage) or event subscriptions rather than always returning large telemetry objects to callers.

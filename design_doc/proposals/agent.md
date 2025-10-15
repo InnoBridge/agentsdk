@@ -152,37 +152,16 @@ This graph-style diagram highlights the core loop—from kickoff through plan, a
 
 Model provider selection: the default runner should iterate over `modelProviders` in priority order, choosing the first client that advertises support for the requested capabilities (model name, modality, max tokens, cost ceiling). Hosts may supply a custom selection strategy that scores providers by latency/cost or routes specific tasks to specialized models.
 
-- ToolDefinition
-	- id: string
-	- schema?: JSONSchema
-	- run(input: ToolInput): Promise<ToolOutput>
 
- - LLMClient
-	- call(promptOrMessages: string | ChatMessage[], opts?: CallOptions): Promise<ModelResponse>
-	- // optional streaming API: async iterator of token chunks
-	- stream?(promptOrMessages: string | ChatMessage[], opts?: StreamOptions): AsyncIterable<TokenChunk>
-	- // optional metadata & lifecycle
-	- getModelInfo?(): Promise<{ name: string; maxTokens?: number; supportsStreaming?: boolean }>;
-	- close?(): Promise<void>;
+- ToolDefinition: small pluggable tool descriptor; see `tools.md` for details.
 
-- MemoryClient
-	- append(streamKey, entry): Promise<void>
-	- read(streamKey, opts?): Promise<any[]>
-	- search?(query, opts?): Promise<any[]>
-	- clear?(streamKey): Promise<void>
+- LLMClient: provider client for LLMs (sync/async/optional streaming); see `llmclient.md`.
 
-- DatabaseClient
-	- write(collection: string, key: string, value: any): Promise<void>
-	- read(collection: string, key: string): Promise<any | null>
-	- query(collection: string, q: any, opts?): Promise<any[]>
-	- search?(text: string, opts?: { topK?: number }): Promise<any[]>
+- MemoryClient: short-term ephemeral store for run-local state; see `memory.md` for details.
 
-PromptStore (see `prompt_template.md` for the `PromptTemplate` resource shape and guidance)
-	- get(templateId: string, version?: string): Promise<PromptTemplate | null>
-	- render(templateId: string, params?: Record<string, any>, opts?: { throwOnMissing?: boolean }): Promise<{ text: string; meta?: { tokensEstimate?: number } }>
-	- put(template: Omit<PromptTemplate, 'version'|'createdAt'>, opts?: { author?: string }): Promise<PromptTemplate>
-	- list(filter?: { tag?: string; name?: string }): Promise<PromptTemplate[]>
-	- validate(templateText: string): Promise<{ ok: boolean; errors?: string[] }>
+- DatabaseClient: optional long-term persistent store for knowledge, user profiles, and retrieval-augmented generation (RAG); see `database.md` for details.
+
+PromptStore: see `prompt.md` for template shapes, rendering, and the PromptStore API.
 
 - Agent.run(): Promise<AgentResult>
 
@@ -191,6 +170,8 @@ PromptStore (see `prompt_template.md` for the `PromptTemplate` resource shape an
 `AgentResult` is the stable contract returned by `Agent.run()` and `AgentSession.run()`. Keep the base surface minimal so callers can reliably consume it, while exposing optional metadata for observability, replay, and billing.
 
 For the extended shape and helper types see `agent_result.md` (this file contains the detailed field list, helper type sketches, and notes for implementors).
+
+For evaluation and metrics guidance, see `evaluation.md`.
 
 ## Agent interface (fundamentals)
 
@@ -284,52 +265,14 @@ Tool registration should support whitelisting/blacklisting per-agent.
 
 Short-term memory (`MemoryClient`): ephemeral store lives for the duration of a run. Used for step context, scratchpads, and chain-of-thought if enabled.
 
-Long-term memory (`DatabaseClient`): optional persistent store for knowledge, user profiles, and retrieval augmented generation (RAG). Provide clients for:
-- In-memory (default for tests)
-- SQLite (embedded, zero-deps)
-- Redis/Postgres (production)
-
 Memory primitives:
 - append(streamKey, entry)
 - read(streamKey, opts)
 - search(query, opts)
 
-Privacy & policy: memory and database clients must support redaction and access controls. The Safety layer must intercept sensitive writes, and prompt/memory writes should run through policy hooks (PII, secrets, retention limits).
+Long-term persistence and production database client guidance moved to `database.md` (see that file for DatabaseClient primitives, privacy, and safety notes).
 
-## Safety & Policy
-
-Provide an intercepting policy engine with rules configured per-agent. Rules examples:
-- toolAllowlist / toolDenylist
-- requestRateLimit per-tool
-- contentFilter (block prompts or tool inputs that match disallowed categories)
-
-Policy enforcement points:
-- Planner output validation (prevent disallowed tool selections)
-- Tool input sanitization
-- Memory write filters (redact or drop sensitive data)
-
-Audit logs: all blocked/modified actions must be recorded for audit and debugging.
-
-## Observability & Testing
-
-Emit structured events to a pluggable event bus for persisting traces and debugging. Provide a test harness that can:
-- Stub model responses deterministically
-- Capture the event stream and assert on the sequence of actions
-- Run fast integration tests using in-memory clients and connectors
-
-Deterministic mode: allow seeding RNGs and stubbing model tokens to enable snapshot-style tests.
-
-Persist event streams to an append-only store (database client, blob storage, or log aggregator) so production runs can be replayed. Emit redacted logs by default; provide feature flags to include or exclude tool inputs that may contain sensitive data.
-
-## Evaluation & Metrics
-
-Key metrics to capture:
-- Task success rate
-- Steps per task
-- Tool error rates and latencies
-- Model token usage and cost estimate
-
-Add unit/integration tests to measure regressions and a lightweight benchmark harness for common scenarios.
+## Example Flows
 
 ## Example Flows
 

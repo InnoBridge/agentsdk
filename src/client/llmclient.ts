@@ -1,0 +1,7 @@
+interface LLMClient {
+
+};
+
+export {
+    LLMClient
+};
