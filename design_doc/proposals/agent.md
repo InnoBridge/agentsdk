@@ -18,12 +18,8 @@ Inputs:
 
 Outputs:
 - Structured action sequence (tool calls, messages) and final result object.
-- Rich event stream for observability (step start/end, model tokens, errors).
 
-Error modes:
-- Model failures or timeouts.
-- Tool errors (retriable vs fatal configurable per tool).
-- Safety violations (blocked by policy enforcement layer).
+<!-- Error modes moved to todo.md -->
 
 Success criteria:
 - Agents can run a multi-step task using at least two tools (e.g., HTTP + in-memory KV) in a single integration test.
@@ -144,7 +140,7 @@ This graph-style diagram highlights the core loop—from kickoff through plan, a
 ## Core Components
 
 
-- AgentConfig
+- Agent
 	- id: string
 	- taskPrompt: string
 	- tools: ToolDefinition[]
@@ -181,91 +177,20 @@ Model provider selection: the default runner should iterate over `modelProviders
 	- query(collection: string, q: any, opts?): Promise<any[]>
 	- search?(text: string, opts?: { topK?: number }): Promise<any[]>
 
-- PromptStore
+PromptStore (see `prompt_template.md` for the `PromptTemplate` resource shape and guidance)
 	- get(templateId: string, version?: string): Promise<PromptTemplate | null>
 	- render(templateId: string, params?: Record<string, any>, opts?: { throwOnMissing?: boolean }): Promise<{ text: string; meta?: { tokensEstimate?: number } }>
 	- put(template: Omit<PromptTemplate, 'version'|'createdAt'>, opts?: { author?: string }): Promise<PromptTemplate>
 	- list(filter?: { tag?: string; name?: string }): Promise<PromptTemplate[]>
 	- validate(templateText: string): Promise<{ ok: boolean; errors?: string[] }>
 
-Prompt templates should be versioned, auditable resources. A minimal shape:
-
-```ts
-export interface PromptTemplate {
-	id: string;
-	version: string;
-	name?: string;
-	text: string;
-	requiredVars?: string[];
-	engine?: 'handlebars' | 'liquid' | 'mustache' | 'fstring';
-	metadata?: Record<string, unknown>;
-	createdBy?: string;
-	createdAt?: string;
-}
-```
-
-The PromptStore is responsible for validating templates (required variables, policy compliance, redaction helpers) before they are rendered and for emitting audit events on changes.
-
 - Agent.run(): Promise<AgentResult>
-
-Eventing hooks (for observability and testing):
-- onStepStart(stepInfo)
-- onModelTokens(tokens)
-- onToolCall(toolId, input)
-- onError(err)
 
 ## AgentResult
 
 `AgentResult` is the stable contract returned by `Agent.run()` and `AgentSession.run()`. Keep the base surface minimal so callers can reliably consume it, while exposing optional metadata for observability, replay, and billing.
 
-Required fields:
-- `id`: unique identifier for the run/result (string)
-- `success`: boolean outcome flag
-- `result`: final user-facing payload (string or structured object)
-- `startedAt` / `finishedAt`: ISO timestamps
-- `error`: optional object `{ message, code?, info? }` populated only when `success === false`
-
-Recommended optional fields:
-- `sessionId`: per-run session identifier
-- `steps`: number of plan/act iterations executed
-- `actions`: ordered list of tool/planner steps with inputs/outputs
-- `modelCalls`: summary of each LLM invocation (prompt reference, provider, token usage)
-- `tokenUsage`, `costEstimate`: usage accounting for billing/monitoring
-- `eventStream`: inline events or pointer to persisted trace
-- `memoryDeltas`: changes applied to memory/database clients during the run
-- `provenance`: template/model references for auditability
-- `diagnostics`: warnings, traces, retry metadata, deterministic seed, etc.
-
-TypeScript sketch:
-
-```ts
-export interface AgentResult {
-	id: string;
-	sessionId?: string;
-	success: boolean;
-	result?: unknown;
-	error?: { message: string; code?: string; info?: unknown };
-	startedAt: string;
-	finishedAt: string;
-	steps?: number;
-	actions?: ActionResult[];
-	modelCalls?: ModelCall[];
-	tokenUsage?: TokenUsage;
-	costEstimate?: number;
-	eventStream?: Event[] | string;
-	memoryDeltas?: MemoryChange[];
-	provenance?: Provenance;
-	diagnostics?: { warnings?: string[]; traces?: string[] };
-	aborted?: boolean;
-	retryInfo?: { attempts: number; lastError?: string };
-	seed?: number;
-	deterministic?: boolean;
-	metrics?: { durationMs?: number; toolLatencyMs?: Record<string, number> };
-	attachments?: Record<string, string>;
-}
-```
-
-Where helper types (`ActionResult`, `ModelCall`, `TokenUsage`, `MemoryChange`, `Provenance`, `Event`) encapsulate the richer metadata captured by the runner. Implementations may extend the interface but should keep the base fields stable for consumers.
+For the extended shape and helper types see `agent_result.md` (this file contains the detailed field list, helper type sketches, and notes for implementors).
 
 ## Agent interface (fundamentals)
 
@@ -278,9 +203,8 @@ Fundamental responsibilities (what an `Agent` must provide):
 - Tool management: registration, lookup, and safety metadata for available tools.
 - Client access: wire up LLM clients, memory/database clients, prompt stores, and tool connectors.
 - Policy & Safety hooks: validate planner outputs and sanitize tool inputs.
-- Observability: structured events, traces, and metrics hooks.
 - Deterministic testing: support stubbed model clients, seedable RNGs, and in-memory clients.
-- Error handling and retries: surface errors, classify retriable vs fatal tool failures, and support configurable retry policies.
+- Error handling and retries: (moved to todo.md)
 
 Small TypeScript sketch (public surface):
 
@@ -290,18 +214,18 @@ export interface Agent {
 	createSession(opts?: RunOptions): AgentSession;
 
 	/** convenience: run a single task end-to-end */
-	runOnce(opts?: RunOptions): Promise<AgentResult>;
+	runOnce(opts?: RunOptions): Promise<T>;
 
 	/** lifecycle */
 	stop(): Promise<void>;
 
 	/** events for observability */
-	on(event: 'step'|'tool'|'error'|'metrics', handler: EventHandler): void;
+	on(event: 'step'|'tool', handler: EventHandler): void;
 }
 
 export interface AgentSession {
 	id: string;
-	run(): Promise<AgentResult>;
+	run(): Promise<T>;
 	abort(): void;
 }
 ```
