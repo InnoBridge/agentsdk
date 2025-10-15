@@ -1,4 +1,4 @@
-AI Agent Proposal
+# AI Agent Proposal
 
 ## Introduction
 
@@ -53,7 +53,7 @@ The platform keeps a slim `AgentService` (singleton) that creates per-run `Agent
 ### Component topology
 
 <details>
-    <summary>Resolution Flow (click to expand)</summary>
+    <summary>Component Topology (click to expand)</summary>
 
 ```mermaid
 graph TB
@@ -103,6 +103,43 @@ graph TB
 ![Agent Architecture](../../assets/Agent-Architecture.png)
 
 This layered architecture view highlights how the host application interacts with the session-level runtime while keeping external providers (tools, model clients, policy engine) decoupled via narrow contracts. For temporal detail, rely on the textual plan → act → reflect description or runtime traces rather than a full sequence diagram.
+
+### Plan → Act → Reflect loop architecture
+
+The runner coordinates a feedback loop that keeps planning, executing, and reflecting on intermediate results until a termination condition is reached. Each iteration flows through well-defined contracts so hosts can swap implementations without changing the public agent API.
+
+- **Kickoff**: the agent loads the run specification, seeds an `AgentSession`, and hydrates short-term memory from any stored context.
+- **Plan**: the planner inspects the latest session state (conversation, scratchpad, memory snapshots) and drafts the next `PlanStep`, often powered by an LLM client and prompt templates.
+- **Act**: the tool executor carries out the planned step, invoking registered tools and capturing structured results.
+- **Reflect**: the runner merges tool output back into the session state, updates memory/database clients, and decides whether to continue planning or finish the run.
+
+<details>
+    <summary>Agent Loop Flow (click to expand)</summary>
+
+```mermaid
+graph TD
+	Start((Start Run)) --> Spec[Agent Spec & Constraints]
+	Spec --> SessionSetup[Seed Agent Session]
+	SessionSetup --> State[(Session State)]
+	State --> Planner
+	PromptStore --> Planner
+	Planner --> PlanStep[Plan Step]
+	PlanStep --> Executor[Tool Executor]
+	Executor --> Tools[Registered Tools]
+	Executor --> Outcome[Tool Output]
+	Outcome --> Reflect[Reflect & Update]
+	Reflect --> Memory[(Memory / DB Clients)]
+	Memory --> State
+	Reflect --> Decision{Goal Met?}
+	Decision -->|no| Planner
+	Decision -->|yes| Result[AgentResult]
+```
+
+</details>
+
+![Agent Architecture](../../assets/Plan-Act-Reflect-Architecture.png)
+
+This graph-style diagram highlights the core loop—from kickoff through plan, act, and reflect—while keeping emphasis on the swappable planner, tool executor, and memory components, without introducing separate safety or telemetry layers.
 
 ## Core Components
 
