@@ -21,55 +21,7 @@ Outputs:
 
 <!-- Error modes moved to todo.md -->
 
-Success criteria:
-- Agents can run a multi-step task using at least two tools (e.g., HTTP + in-memory KV) in a single integration test.
-- Deterministic replay in tests when using a stubbed model provider and deterministic RNG.
-
-## Architecture Overview
-
-High-level components:
-- Runner: orchestrates the plan-act-reflect loop, manages step sequencing and retries.
-- Planner: generates next-step instructions (can be a model call or a deterministic planner).
-- Executor/Tool Runner: executes actions (tool calls) and returns structured results.
-- Memory: short-term (per-run) and long-term (persisted) stores with pluggable clients.
-- Connectors: clients or wrappers for LLM providers and tools (HTTP, DB, shell, internal functions).
-
-Sequence (simplified):
-1. Agent is constructed with a spec (task, tools, memory policy, limits).
-2. Agent invokes Planner to produce a plan for the next action.
-3. Agent validates planned actions with Safety layer.
-4. Executor runs allowed actions via registered Connectors.
-5. Results are written to Memory and fed back to Planner for the next step.
-6. Repeat until termination condition (goal reached, steps exhausted, or abort).
-
-## Architecture Diagrams
-
-The platform keeps a slim `AgentService` (singleton) that creates per-run `AgentSession` instances. Each session composes the planner, tool executor, safety checks, memory/database clients, prompt store, and model providers, emitting events that flow to observability sinks.
-
-### Component topology
-
-<details>
-    <summary>Component Topology (click to expand)</summary>
-
-```mermaid
-graph TB
-	subgraph Host Layer
-		Caller[API / Worker / UI]
-	end
-
-	subgraph Agent Runtime
-		AgentService
-		subgraph Agent Session
-			Runner
-			Planner
-			ToolExec[Tool Executor]
-			Safety[Safety Guardrails]
-			subgraph State & Prompts
-				MemoryClient
-				DatabaseClient
-				PromptStore
-			end
-			EventBus[(Event Bus / Telemetry)]
+Note: `AgentSession` and `AgentResult` runtime shapes were removed from the design doc to avoid duplication with runtime types. Refer to `src/agents/agent.ts` for the authoritative runtime contract.
 		end
 	end
 
@@ -165,6 +117,8 @@ Model provider selection: the default runner should iterate over `modelProviders
 
 PromptStore: see `prompt.md` for template shapes, rendering, and the PromptStore API.
 
+- ExecutionEngine: orchestrates the plan → act → reflect loop for each run; see `execution_engine.md` for the detailed proposal and API contract.
+
 - Agent.run(): Promise<AgentResult>
 
 ## Agent Category : OnDemand vs Persistent
@@ -202,6 +156,47 @@ Spawn patterns:
 - **Synchronous runs**: the persistent singleton resolves a new on-demand agent instance directly from the application context, executes `runOnce` (or equivalent), and drops the reference immediately. `@Prototype` scope keeps each run isolated without polluting caches.
 - **Asynchronous / long-running runs**: capture the returned promise or job handle before the call returns. Store this handle in a lightweight registry or emit it through an event bus so other components can await completion. Use `@Request` only if the entire workflow stays inside one async context; otherwise prefer `@Prototype` plus an explicit run registry.
 - In both cases, avoid storing the on-demand agent itself in global state—persist only identifiers or result promises so the singleton remains stateless and resilient to restarts.
+
+Runtime interface sketch
+
+```ts
+interface Agent {
+	// create a per-run session/context (opaque implementation-defined handle)
+	createSession(opts?: any): any;
+
+	// run the agent: given opts, perform planning and actions (may call tools/LLM/DB)
+	// and return the result or throw on fatal errors
+	run<T = unknown>(opts?: any): Promise<T>;
+
+	// optional graceful shutdown for long-lived agents
+	stop?(): Promise<void>;
+}
+
+interface OnDemandAgent extends Agent {
+	/**
+	 * Temporary/on-demand agents are created for quick runs or interactive prototypes.
+	 * They may be stateful and are generally short-lived.
+	 */
+	// tempId: short-lived correlation id to map a client/request to this ephemeral agent
+	// (not a stable identity, not used for authorization; expires quickly)
+	tempId?: string;
+
+	owner?: string; // optional user id who created the agent (for short-term access control)
+}
+
+interface PersistentAgent extends Agent {
+	/**
+	 * Persistent agents are registered resources with stable identity and ACLs.
+	 */
+	id: string; // required stable identifier (slug or UUID)
+	owner: string; // owner/team id responsible for this agent
+	acl?: Record<string, string[]>; // simple ACL map (role -> permissions)
+};
+```
+
+These sketches mirror the runtime definitions in `src/agents/agent.ts` and are intentionally minimal; import the concrete types from the runtime file in implementation code when possible.
+
+For a quick sketch of how `Agent.run` hands work to an orchestration layer, see the [Execution Engine sketch](execution_engine.md). It outlines the `ExecutionEngine.execute` signature, the core loop, and the optional hooks for safety, memory, and observability.
 
 ### Example agent implementations
 
@@ -243,10 +238,10 @@ Small TypeScript sketch (public surface):
 ```ts
 export interface Agent {
 	/** create a per-run session object that holds mutable run state */
-	createSession(opts?: RunOptions): AgentSession;
+	createSession(opts?: RunOptions): any;
 
 	/** convenience: run a single task end-to-end */
-	runOnce(opts?: RunOptions): Promise<T>;
+	run<T = unknown>(opts?: RunOptions): Promise<T>;
 
 	/** lifecycle */
 	stop(): Promise<void>;
@@ -255,11 +250,7 @@ export interface Agent {
 	on(event: 'step'|'tool', handler: EventHandler): void;
 }
 
-export interface AgentSession {
-	sessionId: string; // per-run session identifier (unique per Agent.run/session)
-	run(): Promise<T>;
-	abort(): void;
-}
+// AgentSession/AgentResult are runtime implementation details; see `src/agents/agent.ts` for the authoritative shapes.
 ```
 
 Design notes:
