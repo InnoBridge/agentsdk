@@ -141,7 +141,9 @@ This graph-style diagram highlights the core loop—from kickoff through plan, a
 
 
 - Agent
-	- id: string
+	- id: string  # immutable, stable identifier for the agent (slug or UUID)
+	- name?: string  # human-friendly label (recommended for UIs)
+	- description?: string  # optional long-form Markdown documentation
 	- taskPrompt: string
 	- tools: ToolDefinition[]
 	- memoryClient?: MemoryClient
@@ -164,6 +166,55 @@ Model provider selection: the default runner should iterate over `modelProviders
 PromptStore: see `prompt.md` for template shapes, rendering, and the PromptStore API.
 
 - Agent.run(): Promise<AgentResult>
+
+## Agent Category : OnDemand vs Persistent
+
+Agents come in two broad flavors with slightly different expectations around lifecycle, security, and persistence:
+
+- OnDemandAgent (disposable / prototype)
+	- Purpose: quick, short-lived runs for interactive sessions, experimentation, or ephemeral automation tasks.
+	- Lifecycle: created per-request or per-interaction, may be kept only in-memory or with short TTLs if persisted.
+	- Defaults: conservative by default (no dangerous tools enabled), short timeouts, non-replicated state.
+	- Suggested fields: `tempId?: string`, `owner?: string`, `taskPrompt`, `tools` (host may restrict tool set), optional `ttlSeconds` if the host persists short-term state.
+	- Use cases: playgrounds, user-driven ad-hoc automations, debugging runs.
+
+- PersistentAgent (registered / long-lived)
+	- Purpose: stable, registered agents that represent ongoing automations or services owned by a team.
+	- Lifecycle: created once, persisted, versioned by the host, subject to ACLs and lifecycle operations (archive/delete).
+	- Defaults: stricter security posture (tool access gated by ACLs or roles), longer execution limits when approved, audit logging enabled.
+	- Suggested fields: `id: string`, `owner: string`, `acl?: Record<string,string[]>`, `taskPrompt`, `tools` (explicit whitelist), optional `description` and `name`.
+	- Use cases: scheduled automations, production integrations, customer-facing agents.
+
+Design notes:
+- Keep `OnDemandAgent` and `PersistentAgent` interfaces small and focused on policy differences rather than implementation details.
+- Default to least-privilege for tools; require explicit host approval or RBAC entries to enable sensitive connectors (shell, DB writes, cloud APIs) for PersistentAgents.
+- Provide migration paths: hosts should be able to 'promote' an OnDemandAgent to a PersistentAgent after review and enrichment (add owner, acl, persistent storage).
+
+### Scope guidance with memorize-singleton
+
+When using the `innobridge/memorize-singleton` scopes, pair the agent categories with the following lifecycle expectations:
+
+- Persistent agents: decorate with `@Singleton` so they remain globally cached and act as orchestrators or registries.
+- On-demand agents: request them with either `@Prototype` (fresh instance per invocation) or `@Request` (cached for the duration of a single async context) depending on how long the run lives.
+
+Spawn patterns:
+
+- **Synchronous runs**: the persistent singleton resolves a new on-demand agent instance directly from the application context, executes `runOnce` (or equivalent), and drops the reference immediately. `@Prototype` scope keeps each run isolated without polluting caches.
+- **Asynchronous / long-running runs**: capture the returned promise or job handle before the call returns. Store this handle in a lightweight registry or emit it through an event bus so other components can await completion. Use `@Request` only if the entire workflow stays inside one async context; otherwise prefer `@Prototype` plus an explicit run registry.
+- In both cases, avoid storing the on-demand agent itself in global state—persist only identifiers or result promises so the singleton remains stateless and resilient to restarts.
+
+### Example agent implementations
+
+| Agent concept | Recommended scope | Rationale | Notes |
+| --- | --- | --- | --- |
+| ChatAgent | On-demand | Interactive chat sessions are typically user-scoped and short-lived; spinning up a fresh instance per conversation avoids cross-user leakage and lets the host dispose of state once the thread ends. | If conversations need to resume later, persist transcripts separately and hydrate a new agent when the user returns. |
+| WorkflowOrchestrator | Persistent | Coordinates scheduled or event-driven automations that must remember owner, schedule, and tool entitlements. A singleton instance per workflow keeps policy and audit data stable. | Pair with ACLs and versioning so operators can roll out updates safely. |
+| RetrievalQAAgent | On-demand | Fetches context from knowledge bases to answer ad-hoc queries. Each question can be handled by a disposable agent that seeds short-term memory with query-specific context. | Cache retrieved documents outside the agent if you need cross-request reuse. |
+| IncidentTriageAgent | Persistent | Monitors alerts and automatically files tickets or pages responders. Needs long-lived configuration, rotation policies, and tamper-proof audit logs. | Consider a standby on-demand agent for drill runs so production responders remain isolated. |
+| DataCleanupAgent | On-demand | Runs batch transformations or validations over datasets. These jobs are usually transient and benefit from fresh per-run parameters. | For large batches, checkpoint progress externally so a new agent can resume after failure. |
+| CustomerSupportCopilot | Persistent | Represents a branded assistant with curated tools, tone, and escalation policies. Multiple operators might invoke it, but the configuration should remain centralized and versioned. | Use on-demand child sessions to manage simultaneous conversations while the persistent agent stores shared policy. |
+
+
 
 ## AgentResult
 
@@ -205,7 +256,7 @@ export interface Agent {
 }
 
 export interface AgentSession {
-	id: string;
+	sessionId: string; // per-run session identifier (unique per Agent.run/session)
 	run(): Promise<T>;
 	abort(): void;
 }
