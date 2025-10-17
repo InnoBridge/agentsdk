@@ -131,3 +131,82 @@ Notes
 
 - Keep `CallOptions.raw` or similar passthrough fields for provider-specific options.
 - Add `stubLLMClient` for tests and make integration tests skip if credentials/local runtimes are missing.
+
+---
+
+## Concrete unified interface + example adapters
+
+Below is a suggested unified TypeScript contract (copy‑paste into `src/client/llmclient.ts`) and two minimal adapter examples: `OpenAIClient` and `OllamaClient`. These examples are intentionally small and focus on `call()` (sync request) and a minimal `stream()` fallback.
+
+Unified TypeScript contract
+
+```ts
+// ...existing code...
+type Message = { role: 'system' | 'user' | 'assistant'; content: string };
+type CallOptions = { model?: string; temperature?: number; maxTokens?: number; raw?: Record<string, any> };
+type LLMResponse = { text?: string; messages?: Message[]; usage?: any; raw?: any };
+
+interface LLMClient {
+	call(input: string | Message[], opts?: CallOptions): Promise<LLMResponse>;
+	stream?(input: string | Message[], handler?: { onToken?: (tok: string) => void; onError?: (err: any) => void; onClose?: () => void }, opts?: CallOptions): Promise<void>;
+	getModelInfo?(model?: string): Promise<any>;
+	close?(): Promise<void>;
+}
+```
+
+OpenAIClient (example)
+
+```ts
+class OpenAIClient implements LLMClient {
+	private client: any;
+	constructor(apiKey?: string, baseURL?: string) {
+		// lazy require to avoid hard dependency in docs
+		// const { OpenAI } = require('openai');
+		// this.client = new OpenAI({ apiKey, baseURL });
+	}
+
+	async call(input, opts) {
+		const messages = typeof input === 'string' ? [{ role: 'user', content: input }] : input;
+		// prefer Responses API
+		const res = await this.client.responses.create({ model: opts?.model, input: messages, ...opts?.raw });
+		const text = extractTextFromResponses(res);
+		return { text, messages: [{ role: 'assistant', content: text }], raw: res, usage: res?.usage };
+	}
+
+	async stream(input, handler, opts) {
+		// try SDK streaming; fallback to call
+		const res = await this.call(input, opts);
+		if (res.text) handler?.onToken?.(res.text);
+		handler?.onClose?.();
+	}
+}
+```
+
+OllamaClient (example)
+
+```ts
+class OllamaClient implements LLMClient {
+	constructor(baseUrl: string) { this.baseUrl = baseUrl.replace(/\/$/, ''); }
+
+	async call(input, opts) {
+		const prompt = typeof input === 'string' ? input : input.map(m => m.content).join('\n');
+		const res = await fetch(`${this.baseUrl}/api/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt, model: opts?.model, ...opts?.raw }) });
+		const json = await res.json();
+		const text = json?.results?.[0]?.content ?? json?.content ?? JSON.stringify(json);
+		return { text, raw: json };
+	}
+}
+```
+
+Provider mapping snippets (how to extract text)
+
+- OpenAI Responses: join `res.output` content pieces (walk `res.output[*].content[*].text`).
+- OpenAI Chat: `res.choices[0].message.content` or `res.choices[0].text`.
+- Anthropic: `res.completion` or `res.completion?.content`.
+- Cohere: `res.generations?.[0]?.text`.
+- Ollama: `json.results?.[0]?.content` or `json.content`.
+
+Testing helpers
+
+- `stubLLMClient`: return `{ text: 'stub' }` for deterministic unit tests.
+- Integration tests: if `OPENAI_API_KEY` or `OLLAMA_BASE_URL` missing, skip tests.
