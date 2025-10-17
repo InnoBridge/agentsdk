@@ -44,5 +44,9 @@
   },
   "engines": {
     "node": "^20.0.0 || >=22.0.0"
+  },
+  "dependencies": {
+    "@innobridge/memoizedsingleton": "^0.0.5",
+    "openai": "^6.4.0"
   }
 }
