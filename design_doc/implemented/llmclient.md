@@ -1,39 +1,62 @@
-## LLMClient
+# LLMClient
 
-This document reflects the current runtime implementation found in `agentsdk/src/client/llmclient.ts`.
+This document explains what the `LLMClient` is for: a lightweight, provider-agnostic abstraction that centralizes calls to language model providers (local runtimes and hosted APIs). It defines the minimal contract the application uses to perform chat/generation requests, list and inspect available models, and manage provider lifecycle (startup/shutdown). Implementations (provider adapters) translate this contract to provider-specific SDK calls and normalize responses so the rest of the application can remain provider-independent.
 
-Current source summary
+Source locations
 
-- `LLMClient`
-	- Currently declared as an empty TypeScript interface in the source file. It is exported as a symbol but not yet specified with concrete methods.
+- `agentsdk/src/client/llmclient.ts` — exports the `LLMClient` TypeScript interface.
+- `agentsdk/src/client/ollama_client.ts` — contains the `OllamaClient` class which implements `LLMClient`.
 
-- `OllamaClient`
-	- A class decorated with `@Singleton` (from `@innobridge/memoizedsingleton`) and exported from the module.
-	- Internally it instantiates the official OpenAI SDK client (imported from `openai`) in its constructor:
-		- `this.client = new OpenAI({ apiKey: 'OLLAMA', baseURL: baseUrl })`
-	- The constructor accepts a `baseUrl` string and passes it into the OpenAI client's `baseURL` option. This allows the OpenAI SDK to be used against Ollama-like servers by changing the base URL and using a placeholder API key string `OLLAMA`.
-	- The current implementation does not expose `call`, `stream`, or other higher-level methods — it acts as a thin wrapper/holder for the SDK client and is intended to be registered in the application context as a singleton instance.
+Providers
+
+- ✅ OllamaClient (`agentsdk/src/client/ollama_client.ts`) — implemented (uses OpenAI SDK under the hood).
+- OpenAI (`openai`) — not implemented in this repo; an `OpenAIClient` adapter is recommended.
+- Azure OpenAI (`@azure/ai-openai`) — not implemented.
+- Anthropic (`@anthropic-ai/sdk`) — not implemented.
+- LangChain (`langchain`) — not implemented.
+
+LLMClient (interface)
+
+Key members (as currently declared):
+
+- `chat(input: any): Promise<any>` — primary chat method; Ollama implementation uses the OpenAI SDK chat completions create endpoint.
+- `getModelInfo?(modelId: string): Promise<any>` — optional; wrapper around provider `models.retrieve`.
+- `getModels?(): Promise<string[]>` — optional; returns an array of model id strings.
+- `stop?(): Promise<void>` — optional lifecycle hook; used to clean up resources.
+
+## OllamaClient (implementation) ✅
+
+Constructor
+
+- `constructor(baseUrl: string)` — normalizes `baseUrl` and instantiates the OpenAI SDK client:
+  - strips a trailing slash if present
+  - ensures the URL ends with `/v1` (appends `/v1` if missing)
+  - creates `new OpenAI({ apiKey: 'OLLAMA', baseURL: normalized })`
+  
+  Note: `OllamaClient` uses the official OpenAI SDK (imported from the `openai` package) under the hood to communicate with the runtime.
+
+Methods
+
+- `async getModels(): Promise<string[]>` — calls `this.client.models.list()` and returns `res.data.map(m => m.id)` (array of model ids).
+
+- `async getModelInfo(modelId: string): Promise<Model>` — calls `this.client.models.retrieve(modelId)` and returns the result.
+
+- `async chat(input: ChatCompletionCreateParamsNonStreaming): Promise<ChatCompletion>` — forwards to `this.client.chat.completions.create(input)` and returns the response.
+
+- `async stop(): Promise<void>` — calls `super.stop()` to run the `SingletonComponent` cleanup logic (avoids recursion).
 
 Exports
 
-- The module exports two symbols:
-	- `LLMClient` (placeholder interface)
-	- `OllamaClient` (singleton wrapper class)
+- The module exports `LLMClient` from `agentsdk/src/client/llmclient.ts` and `OllamaClient` from `agentsdk/src/client/ollama_client.ts`.
 
-Developer guidance
+Notes & guidance
 
-- The current runtime shape is intentionally minimal. If we want a stable, documented `LLMClient` contract (call/stream/getModelInfo/close), we should:
-	1. Define the `LLMClient` interface in the source file with the chosen methods and types.
-	2. Implement the methods on `OllamaClient` (or create a separate adapter) to satisfy the interface.
-	3. Add unit tests and update design docs to reflect the concrete contract.
+- `getModels` returns `string[]` of model ids; if you add providers, ensure adapters normalize to this shape.
+- `baseUrl` normalization allows callers to pass either `http://host:port` or `http://host:port/v1`.
+- `stop()` uses `super.stop()` to ensure component cleanup runs and to avoid unintended recursion.
 
-- Alternatively, if we prefer to support multiple providers (OpenAI, Anthropic, local runtimes), implement per-provider adapters that conform to the `LLMClient` interface and register a provider selector in the application context.
+If you want, I can add a small example snippet showing how to instantiate `OllamaClient` and call `chat`/`getModels`, or create a `client/index.ts` barrel to preserve older import paths.
 
-Next steps (recommended)
-
-- Add a small `LLMClient` interface with `call(prompt, opts)`, `stream?(...)`, `getModelInfo?()` and `close?()` and implement them on `OllamaClient` (or add adapter wrappers).
-- Add a `stubLLMClient` for unit tests to avoid external network dependencies.
-- Update integration tests to prefer skipping when environment variables or local runtimes are missing.
 
 
 ## OpenAI (`openai`)
@@ -141,15 +164,15 @@ Below is a suggested unified TypeScript contract (copy‑paste into `src/client/
 Unified TypeScript contract
 
 ```ts
-// ...existing code...
-type Message = { role: 'system' | 'user' | 'assistant'; content: string };
-type CallOptions = { model?: string; temperature?: number; maxTokens?: number; raw?: Record<string, any> };
-type LLMResponse = { text?: string; messages?: Message[]; usage?: any; raw?: any };
-
 interface LLMClient {
-    chat(input: string | Message[], opts?: CallOptions): Promise<LLMResponse>;
-    stream?(input: string | Message[], handler?: { onToken?: (tok: string) => void; onError?: (err: any) => void; onClose?: () => void }, opts?: CallOptions): Promise<void>;
-    getModelInfo?(model?: string): Promise<any>;
-    close?(): Promise<void>;
-}
+  chat(input: any): Promise<any>;
+  // stream?(input: string | Message[], handler?: { onToken?: (tok: string) => void; onError?: (err: any) => void; onClose?: () => void }, opts?: CallOptions): Promise<void>;
+  getModelInfo?(modelId: string): Promise<any>;
+  getModels?(): Promise<string[]>;
+  stop?(): Promise<void>;
+};
+
+export {
+  LLMClient
+};
 ```
