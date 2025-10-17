@@ -4,7 +4,8 @@ import {
     getApplicationContext,
     Insert
 } from '@innobridge/memoizedsingleton';
-import { LLMClient, OllamaClient } from '@/client/llmclient';
+import { LLMClient } from '@/client/llmclient';
+import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
 
 class TestLLMClients {
