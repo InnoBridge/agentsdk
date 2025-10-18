@@ -3,6 +3,7 @@
 | index | date | designdoc | arch doc | pr | package vers. |
 | -----:| ---- | --------- | -------- | -- | ------------- |
 | [1](#1---llm-client) | 2025-10-17 | [LLMClient](./llmclient.md) | | [Implement LLMClient](https://github.com/InnoBridge/agentsdk/pull/1) |  |
+| | 2025-10-18 | [LLMClient](./llmclient.md) | | [Change to OllamaSDK](https://github.com/InnoBridge/agentsdk/pull/2)|  |
 
 <a id="1---llm-client"></a>
 
@@ -29,6 +30,11 @@ Main points from LLMClient.md:
 	- `getModels()` maps `client.models.list()` to `res.data.map(m => m.id)`.
 	- `chat()` forwards to `client.chat.completions.create(...)`.
 	- `stop()` calls `super.stop()` to run `SingletonComponent` cleanup logic.
+
+
+### Change: Ollama SDK (2025-10-18)
+
+- The `OllamaClient` adapter was migrated from using the OpenAI SDK to the native Ollama SDK to correctly support local Ollama server API shapes and streaming overloads.
 - Provider status & recommendations:
 	- Implemented: OllamaClient.
 	- Recommended next adapters: OpenAI, Azure OpenAI, Anthropic, Cohere; implement OpenAI adapter first if you primarily target OpenAI.

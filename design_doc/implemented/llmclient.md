@@ -41,7 +41,7 @@ Methods
 
 - `async getModelInfo(modelId: string): Promise<Model>` — calls `this.client.models.retrieve(modelId)` and returns the result.
 
-- `async chat(input: ChatCompletionCreateParamsNonStreaming): Promise<ChatCompletion>` — forwards to `this.client.chat.completions.create(input)` and returns the response.
+  - `async chat(input: ChatCompletionCreateParamsNonStreaming): Promise<ChatCompletion>` — forwards to `this.client.chat.completions.create(input)` and returns the response.
 
 - `async stop(): Promise<void>` — calls `super.stop()` to run the `SingletonComponent` cleanup logic (avoids recursion).
 
@@ -176,3 +176,7 @@ export {
   LLMClient
 };
 ```
+
+## Amendment
+
+Change: The underlying provider SDK for the `OllamaClient` adapter was changed from the OpenAI SDK to the native Ollama SDK. [PR](https://github.com/InnoBridge/agentsdk/pull/2)

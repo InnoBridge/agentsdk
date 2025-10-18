@@ -1,12 +1,13 @@
-import { 
-    Config, 
+import {
+    Config,
     getConfig,
     getApplicationContext,
-    Insert
+    Insert,
 } from '@innobridge/memoizedsingleton';
 import { LLMClient } from '@/client/llmclient';
 import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
+import { ShowResponse } from 'ollama';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -20,26 +21,34 @@ class TestLLMClients {
 const initialOllama = (): TestLLMClients => {
     console.log('Initializing OllamaClient with base URL from config...');
 
-    new Config(["OLLAMA_BASE_URL"]);
-    const OLLAMA_BASE_URL = getConfig("OLLAMA_BASE_URL");
+    new Config(['OLLAMA_BASE_URL']);
+    const OLLAMA_BASE_URL = getConfig('OLLAMA_BASE_URL');
 
     new OllamaClient(OLLAMA_BASE_URL!);
 
     console.log('OllamaClient initialized.');
 
     return new TestLLMClients();
-}
+};
 
-const shutdownOllama = (ollamaClient: LLMClient) => {
+const shutdownOllama = async (ollamaClient: LLMClient) => {
     console.log('Shutting down OllamaClient...');
 
     const ollamaClientBeforeShutdown = getApplicationContext(OllamaClient);
-    assert.equal(ollamaClientBeforeShutdown, ollamaClient, 'OllamaClient instance should exist before shutdown');
+    assert.equal(
+        ollamaClientBeforeShutdown,
+        ollamaClient,
+        'OllamaClient instance should exist before shutdown',
+    );
 
     ollamaClient.stop!();
 
     const ollamaClientAfterShutdown = getApplicationContext(OllamaClient);
-    assert.equal(ollamaClientAfterShutdown, undefined, 'OllamaClient instance should be removed after shutdown');
+    assert.equal(
+        ollamaClientAfterShutdown,
+        undefined,
+        'OllamaClient instance should be removed after shutdown',
+    );
 
     console.log('✅ OllamaClient shut down.');
 };
@@ -57,8 +66,12 @@ const getModelsTest = async (ollamaClient: LLMClient) => {
 const getModelInfoTest = async (ollamaClient: LLMClient) => {
     console.log('Starting getModelInfoTest ...');
 
-    const modelInfo = await ollamaClient.getModelInfo!('qwen3-coder:30b');
-    console.log("✅ Ollama Model Info: ", modelInfo);
+    const modelInfo: ShowResponse = await ollamaClient.getModelInfo!('qwen3-coder:30b') as ShowResponse;
+
+    console.log(
+        '✅ Ollama Model Info (basename): ',
+        (modelInfo.model_info as any)['general.basename']
+    );
 
     console.log('getModelInfoTest completed.');
 };
@@ -69,13 +82,12 @@ const chatTest = async (ollamaClient: LLMClient) => {
     const input: any = {
         model: 'qwen3-coder:30b',
         messages: [
-            { role: 'user', content: 'Hello from integration test' }
-        ]
+            { role: 'user', content: 'Write a one-sentence bedtime story about a unicorn.' },
+        ],
     };
 
     const ollamaResponse = await ollamaClient.chat(input);
-    console.log('✅ OllamaClient chat response:', ollamaResponse);
-    console.log('✅ OllamaClient chat response choice:', ollamaResponse.choices);
+    console.log('✅ OllamaClient chat response message: ', ollamaResponse.message.content);
 
     console.log('OllamaClient.chat test completed.');
 };
@@ -88,11 +100,11 @@ const chatTest = async (ollamaClient: LLMClient) => {
         await getModelsTest(testLLMClients.getOllamaClient());
         await getModelInfoTest(testLLMClients.getOllamaClient());
         await chatTest(testLLMClients.getOllamaClient());
-        shutdownOllama(testLLMClients.getOllamaClient());
+        await shutdownOllama(testLLMClients.getOllamaClient());
 
-        console.log("🎉 LLMClient integration test passed");
+        console.log('🎉 LLMClient integration test passed');
     } catch (err) {
-        console.error("❌ LLMClient integration test failed:", err);
+        console.error('❌ LLMClient integration test failed:', err);
         process.exit(1);
     }
 })();
