@@ -31,7 +31,7 @@ const initialOllama = (): TestLLMClients => {
     return new TestLLMClients();
 };
 
-const shutdownOllama = (ollamaClient: LLMClient) => {
+const shutdownOllama = async (ollamaClient: LLMClient) => {
     console.log('Shutting down OllamaClient...');
 
     const ollamaClientBeforeShutdown = getApplicationContext(OllamaClient);
@@ -100,7 +100,7 @@ const chatTest = async (ollamaClient: LLMClient) => {
         await getModelsTest(testLLMClients.getOllamaClient());
         await getModelInfoTest(testLLMClients.getOllamaClient());
         await chatTest(testLLMClients.getOllamaClient());
-        shutdownOllama(testLLMClients.getOllamaClient());
+        await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
     } catch (err) {

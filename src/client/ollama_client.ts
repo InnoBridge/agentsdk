@@ -26,7 +26,7 @@ class OllamaClient extends SingletonComponent implements LLMClient {
     }
     
     async chat(input: ChatRequest): Promise<ChatResponse> {
-        return await this.client.chat(input as ChatRequest & { stream: false });
+        return await this.client.chat({ ...input, stream: false });
     };
 
     async stop(): Promise<void> {
