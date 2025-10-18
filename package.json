@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@innobridge/memoizedsingleton": "^0.0.5",
+    "ollama": "^0.6.0",
     "openai": "^6.4.0"
   }
 }

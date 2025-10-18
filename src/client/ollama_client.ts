@@ -1,43 +1,32 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
-import OpenAI from "openai";
-import { Model } from "openai/resources/models";
-import { ChatCompletionCreateParamsNonStreaming, ChatCompletion } from "openai/resources/chat/completions";
+import { Ollama, ShowResponse, ChatRequest, ProgressResponse, ChatResponse } from "ollama";
 import type { LLMClient } from '@/client/llmclient';
 
 
 @Singleton
 class OllamaClient extends SingletonComponent implements LLMClient {
-    private client: OpenAI;
+    private client: Ollama;
 
     constructor(baseUrl: string) {
         super();
-        // Normalize baseUrl: accept either 'http://host:port' or 'http://host:port/v1'
-        let normalized = baseUrl || '';
-        // remove trailing slash if present
-        if (normalized.endsWith('/')) normalized = normalized.slice(0, -1);
-        // append /v1 if not already present
-        if (!normalized.endsWith('/v1')) normalized = normalized + '/v1';
-
-        this.client = new OpenAI({
-            apiKey: 'OLLAMA',
-            baseURL: normalized,
+        this.client = new Ollama({
+            host: baseUrl,
         });
     }
 
     async getModels(): Promise<string[]> {
-        const res = await this.client.models.list();
-        const data = res.data || [];
-        return data.map(model => model.id);
+        const res = await this.client.list();
+        const data = res.models || [];
+        return data.map((model: any) => model.name || model.id || String(model));
     }
 
-    async getModelInfo(modelId: string): Promise<Model> {
-        const res = await this.client.models.retrieve(modelId);
+    async getModelInfo(modelId: string): Promise<ShowResponse> {
+        const res = await this.client.show({ model: modelId });
         return res;
     }
-
-    async chat(input: ChatCompletionCreateParamsNonStreaming): Promise<ChatCompletion> {
-        const response = await this.client.chat.completions.create(input);
-        return response;
+    
+    async chat(input: ChatRequest): Promise<ChatResponse> {
+        return await this.client.chat(input as ChatRequest & { stream: false });
     };
 
     async stop(): Promise<void> {
