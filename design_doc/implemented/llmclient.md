@@ -179,4 +179,4 @@ export {
 
 ## Amendment
 
-Change: The underlying provider SDK for the `OllamaClient` adapter was changed from the OpenAI SDK to the native Ollama SDK.
+Change: The underlying provider SDK for the `OllamaClient` adapter was changed from the OpenAI SDK to the native Ollama SDK. [PR](https://github.com/InnoBridge/agentsdk/pull/2)
