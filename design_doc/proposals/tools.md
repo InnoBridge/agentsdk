@@ -1,3 +1,5 @@
+
+
 ## Tools
 
 ### Motivation
@@ -53,7 +55,27 @@ Key points:
 - **Optional fields**: `strict` maps directly to OpenAI’s strict mode toggle. Providers that do not understand this field simply ignore it.
 - **Execution hook**: the runtime will expect each decorated class to implement `run(): Promise<ToolResult>`; any additional helpers (e.g. `static schema()`) are optional sugar for authors.
 
-**Schema fidelity — best practices (short):** Preserve the author-supplied JSON Schema verbatim as the canonical source-of-truth (attach it to `ToolClass.definition.parameters`). Pre-compile and attach a validator at startup for fast runtime checks (validator implementation may vary), disallow runtime remote `$ref` resolution (resolve external refs at build time), and keep a compact provider-facing view when sending definitions to LLMs. Always re-validate provider-returned arguments against the canonical schema before instantiating a tool, include `examples`/`description` to aid UIs and scorers, and attach small `safety`/`capabilities` metadata to the definition so selection and execution can make policy decisions without parsing the full schema.
+**Schema fidelity — best practices (purpose & minimal flow):**
+
+The canonical `parameters` JSON Schema attached to each `@Tool` is primarily used to validate the provider-returned `tool_call` object from the LLM before we instantiate or execute a tool. In short: the schema is the authoritative contract for the model's tool arguments — not just documentation.
+
+Minimal operational flow (parse → validate → instantiate):
+
+1. parse: safely parse the provider's `tool_call.arguments` (may be a JSON string). If parsing fails, record a parse error and treat the tool call as invalid (optional: attempt a single repair).
+2. validate: run the pre-compiled validator attached to the tool class (e.g. `ToolClass.validator`). If validation fails, do not instantiate; record the validation errors.
+3. instantiate: if validation passes, construct `new ToolClass(validatedArgs)` and return the instance to the executor. Never execute a tool with unvalidated arguments.
+
+Failure handling (concise):
+- Parse error: mark invalid, optionally attempt LLM-assisted repair once.
+- Validation error: attempt one LLM-assisted repair + re-validate; if still invalid, exclude and surface errors to the planner/executor for auditing/escalation.
+
+Operational notes:
+- Keep the canonical schema verbatim on the class for validation and auditing.
+- Pre-compile validators at startup (pluggable implementation) and attach them to the class for fast runtime checks.
+- Resolve external `$ref` at build time; disallow remote `$ref` resolution at runtime.
+- Translate to compact provider-facing schema when sending to the model, but always validate against the canonical server-side schema.
+
+This is the exact purpose of the schema fidelity requirement: validate the LLM's `tool_call` payloads before instantiation or execution. Keep validators pluggable and the flow strict and auditable.
 
 #### Implementation checklist (authors & implementers)
 
