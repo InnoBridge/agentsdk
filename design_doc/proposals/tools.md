@@ -43,7 +43,15 @@ interface CanonicalToolDefinition {
 	type: "function";
 	name: string;
 	description?: string;
+	// The canonical JSON Schema for the tool's arguments. This field is required
+	// and is the authoritative contract used for provider translation and
+	// server-side validation of LLM `tool_call` payloads.
 	parameters: JsonSchema; // full JSON schema, including required/properties/items/etc.
+
+	// Optional runtime flags. Default runtime behavior is fail-closed when
+	// `parameters` is absent; authors must explicitly opt-in to permissive modes.
+	allowNoSchema?: boolean;
+	noSchemaMode?: 'read-only' | 'human-approval' | 'full';
 	strict?: boolean; // defaults to provider baseline
 }
 ```
@@ -54,6 +62,8 @@ Key points:
 - **Decorator storage**: the decorator attaches the canonical definition to the class (e.g. `ToolClass.definition`) so `toolCall` can read it without relying on experimental decorator metadata emitters.
 - **Optional fields**: `strict` maps directly to OpenAI’s strict mode toggle. Providers that do not understand this field simply ignore it.
 - **Execution hook**: the runtime will expect each decorated class to implement `run(): Promise<ToolResult>`; any additional helpers (e.g. `static schema()`) are optional sugar for authors.
+
+- **Schema required**: `parameters` is required on every public tool definition. The runtime treats missing schemas as a safety violation and will fail-closed unless the author explicitly sets `allowNoSchema` with a controlled `noSchemaMode`.
 
 **Schema fidelity — best practices (purpose & minimal flow):**
 
@@ -77,18 +87,22 @@ Operational notes:
 
 This is the exact purpose of the schema fidelity requirement: validate the LLM's `tool_call` payloads before instantiation or execution. Keep validators pluggable and the flow strict and auditable.
 
-### Policy when schema is absent
+### Schema requirement — do not omit
 
-If an author has not provided a canonical `parameters` JSON Schema, the runtime must follow a conservative default and an explicit opt-in path:
+To avoid ambiguity: the canonical `parameters` JSON Schema is required for any tool intended to be callable by the LLM. The text below only describes the exceptional, opt‑in escape hatch — it does not change the default requirement.
 
-- Default (recommended — fail-closed): reject provider `tool_call` payloads for that tool. Return a clear error to the planner: "tool X has no schema; provide a schema or opt in to allowNoSchema." Do not instantiate or execute.
-- Opt-in permissive mode (`allowNoSchema: true` on the `@Tool` decorator): allow instantiation only under explicit constraints. Recommended `noSchemaMode` values:
-	- `read-only` — permit instantiation for tools that perform read-only operations; side effects prohibited unless approved.
-	- `human-approval` — queue the tool for human approval before execution.
-	- `full` — allow execution without schema (not recommended without additional guardrails).
-- Provenance: any instantiation that used `allowNoSchema` must be flagged `validated: false` in audit logs and include the `noSchemaMode` used.
+- Registration-time enforcement: when a tool is registered (decorator application / startup), the runtime will validate that `parameters` is present. If `parameters` is missing and `allowNoSchema !== true`, registration will fail with a clear error asking the author to provide a schema.
 
-Authors should prefer providing a schema. Use `allowNoSchema` only when a tool's risk profile is low and there's clear operational justification.
+- Default (recommended — fail-closed): at runtime, if a provider returns a `tool_call` for a tool that has no canonical schema (because the author explicitly opted out), treat the call as disallowed unless the tool was registered with the opt-in flags described below.
+
+- Explicit opt-in only: authors who deliberately want to allow no-schema tools must set `allowNoSchema: true` on the decorator at registration time. That opt-in must be deliberate and accompanied by a `noSchemaMode` that constrains execution. Recommended `noSchemaMode` values:
+  - `read-only` — permit instantiation for tools that perform only read-only operations; side effects prohibited unless explicitly approved.
+  - `human-approval` — queue the tool for human approval before execution.
+  - `full` — allow execution without schema (not recommended without additional guardrails and approvals).
+
+- Provenance & auditing: any instantiation that used `allowNoSchema` must be flagged `validated: false` and include the `noSchemaMode` in audit logs and UI traces.
+
+Authors should prefer providing a schema. The opt-in path is only for rare, low-risk cases and must be explicit at registration time.
 
 #### Implementation checklist (authors & implementers)
 
