@@ -53,6 +53,19 @@ Key points:
 - **Optional fields**: `strict` maps directly to OpenAI’s strict mode toggle. Providers that do not understand this field simply ignore it.
 - **Execution hook**: the runtime will expect each decorated class to implement `run(): Promise<ToolResult>`; any additional helpers (e.g. `static schema()`) are optional sugar for authors.
 
+**Schema fidelity — best practices (short):** Preserve the author-supplied JSON Schema verbatim as the canonical source-of-truth (attach it to `ToolClass.definition.parameters`). Pre-compile and attach a validator (AJV or similar) at startup for fast runtime checks, disallow runtime remote `$ref` resolution (resolve external refs at build time), and keep a compact provider-facing view when sending definitions to LLMs. Always re-validate provider-returned arguments against the canonical schema before instantiating a tool, include `examples`/`description` to aid UIs and scorers, and attach small `safety`/`capabilities` metadata to the definition so selection and execution can make policy decisions without parsing the full schema.
+
+#### Implementation checklist (authors & implementers)
+
+- Store the canonical schema verbatim on the class (e.g. `ToolClass.definition.parameters`) so it can be used for validation, docs and translation.
+- Pre-compile a JSON Schema validator for each tool at startup (AJV recommended) and attach it to the class (e.g. `ToolClass.validator`) to keep runtime validation fast.
+- Disallow remote `$ref` resolution at runtime. Resolve external refs at build time or require local `$defs` only.
+- When translating to provider formats, produce a provider-compatible view but never mutate the canonical schema.
+- Always re-validate provider-returned arguments against the canonical schema before instantiation; reject and surface clear validation errors to the agent loop.
+- Keep schemas reasonably small; if a schema is large, consider a compact `providerSchema` to send to the model while retaining the canonical copy server-side.
+- Attach optional `safety` and `capabilities` metadata in the decorator so `pickTools` and the executor can make policy decisions without parsing the full schema.
+
+
 ### Provider Schema Mapping
 
 During the translate step, the canonical definition is reshaped per provider:
