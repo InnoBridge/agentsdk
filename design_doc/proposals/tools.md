@@ -77,6 +77,19 @@ Operational notes:
 
 This is the exact purpose of the schema fidelity requirement: validate the LLM's `tool_call` payloads before instantiation or execution. Keep validators pluggable and the flow strict and auditable.
 
+### Policy when schema is absent
+
+If an author has not provided a canonical `parameters` JSON Schema, the runtime must follow a conservative default and an explicit opt-in path:
+
+- Default (recommended — fail-closed): reject provider `tool_call` payloads for that tool. Return a clear error to the planner: "tool X has no schema; provide a schema or opt in to allowNoSchema." Do not instantiate or execute.
+- Opt-in permissive mode (`allowNoSchema: true` on the `@Tool` decorator): allow instantiation only under explicit constraints. Recommended `noSchemaMode` values:
+	- `read-only` — permit instantiation for tools that perform read-only operations; side effects prohibited unless approved.
+	- `human-approval` — queue the tool for human approval before execution.
+	- `full` — allow execution without schema (not recommended without additional guardrails).
+- Provenance: any instantiation that used `allowNoSchema` must be flagged `validated: false` in audit logs and include the `noSchemaMode` used.
+
+Authors should prefer providing a schema. Use `allowNoSchema` only when a tool's risk profile is low and there's clear operational justification.
+
 #### Implementation checklist (authors & implementers)
 
 - Store the canonical schema verbatim on the class (e.g. `ToolClass.definition.parameters`) so it can be used for validation, docs and translation.
