@@ -13,7 +13,32 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
     4. Validator attachment point (pluggable): a compiled validator can be attached at decoration or hydration time and invoked during parse→validate→instantiate.
     5. Policy & provenance hooks: stored definition and optional annotations (e.g., `allowNoSchema`, capability tags) are readable at runtime for safety checks, logging, and UI traces.
     6. Provider mapping link: provider clients map definitions to provider tool IDs; that mapping is captured at runtime to correlate provider `tool_call`s back to the class during hydration.
-  - Attaches the authoritative definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). If `Reflect.defineMetadata` is available it is used, otherwise the symbol path is taken so consumers do not need `reflect-metadata`.
+  - Attaches the authoritative definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). The implementation prefers `Reflect.defineMetadata` / `Reflect.getMetadata` when available (for environments that include the `reflect-metadata` polyfill), but falls back to writing the definition to a well-known Symbol property on the class when `Reflect` metadata isn't present. This avoids forcing a `reflect-metadata` dependency while still supporting environments that use it.
+
+    Why this design:
+    - Symbols are non-enumerable and won't collide with user-defined properties on the class or instance. Storing the definition on a Symbol keeps the runtime slot private and resilient to accidental overwrites.
+    - Using `Reflect` when available keeps interoperability with other libraries or tooling that rely on metadata, while the Symbol fallback avoids requiring the polyfill for unit tests or lightweight builds.
+
+    Reading the definition (recommended):
+    - The decorator exposes a stable accessor `static getDefinition()` on the decorated class. Consumers should call that method to retrieve the authoritative `ToolDefinition` rather than reading private fields directly. Example:
+
+      ```ts
+      const def = MyTool.getDefinition?.();
+      if (def) {
+        // use def for translation/validation/audit
+      }
+      ```
+
+    Implementation notes and best-practices:
+    - The codebase creates a unique symbol (e.g. `const toolMetadata = Symbol('tool:definition')`) and uses it as the fallback storage key: `(Decorated as any)[toolMetadata] = toolDefinition`.
+    - When `Reflect.defineMetadata` exists the decorator will call it as `Reflect.defineMetadata('tool:definition', toolDefinition, Decorated)` so other metadata-aware libraries can see it.
+    - The decorator should freeze the stored definition (e.g., `Object.freeze(toolDefinition)`) to prevent accidental runtime mutation. Registries that need to annotate or cache derived data should keep separate maps instead of mutating the definition.
+    - Avoid serializing class-level metadata into JSON. If you need to persist metadata, read it via `getDefinition()` and serialize the returned object explicitly; do not attempt to serialize the class itself.
+    - If you attach additional runtime artifacts (compiled validators, precomputed scorers), prefer attaching them to the same symbol slot as separate properties (for example `{ definition, validator }`) or store them in an external WeakMap keyed by the class to avoid accidental exposure or serialization.
+
+    Security and bundling implications:
+    - Because the symbol fallback is a runtime-only artifact, it is compatible with tree-shaking: if a tool class is unused and removed by bundlers, its metadata won't be included in the runtime output. However, registries that import tool modules to register them will keep the class and its metadata alive.
+    - The Reflect fallback requires the `reflect-metadata` polyfill in environments that don't provide `Reflect.getMetadata`/`defineMetadata`. The decorator's fallback means tests and simple builds don't need the polyfill, but production builds that rely on other metadata consumers may still include it.
   - Exposes a static `getDefinition()` helper on the decorated class so registries and clients can read the stored definition without reaching into internals.
 
   ```ts
@@ -105,6 +130,57 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 4. **Dispatch** – The client includes the translated definitions in the chat request and calls the provider SDK.
 5. **Hydrate** – For each `tool_call` in the response, parse the arguments, validate them against the authoritative schema, and instantiate the corresponding `ToolComponent`. This step is the next major piece of work.
 6. **Execute** – The orchestrator decides when to invoke `tool.run()` on hydrated instances so that approval workflows or safety policies can intervene before side effects occur.
+
+### Hydration (parse → validate → instantiate)
+
+Hydration is the critical runtime step that converts provider `tool_call` responses into safe, executable `ToolComponent` instances. The implementation should be conservative and auditable. The recommended micro-workflow below is intentionally explicit so provider clients can implement it consistently.
+
+1) Parse
+  - Accept provider `tool_call.arguments` which may be a JSON object or a string (models often return stringified JSON). Attempt to parse strings into JSON using a tolerant parser (trim whitespace, handle single quotes only if present, but avoid aggressive transformations that hide errors).
+  - On parse success, produce an intermediate `rawArgs: unknown` value plus provenance metadata: original raw string, provider tool id, and source model response chunk.
+  - On parse failure, record the failure with exact input and return a structured parse error to the orchestrator (do not attempt silent repairs by default).
+
+2) Validate
+  - Use the authoritative JSON Schema attached to the decorated class (`ToolDefinition.parameters`) to validate `rawArgs`.
+  - Validators are pluggable. The doc recommends two supported modes:
+    - Eager (compile-at-decoration): compile a fast validator when the `@Tool` decorator runs and attach it to the class metadata. Faster at runtime but requires that the validation library is available at build time.
+    - Lazy (compile-at-hydration): compile or fetch a validator at hydration time. Slightly slower but avoids build-time coupling and supports dynamic validator selection per runtime environment.
+  - On validation success, produce `validatedArgs: Record<string, unknown>` and include validation provenance (validator type + version, compile-time or run-time, time taken).
+  - On validation failure, produce structured validation errors. The system should offer a single, auditable repair attempt policy (optional): run a sanitizer/repairer that is logged and appended to provenance; if repair succeeds, treat the repaired value as `validatedArgs` but mark it as repaired and untrusted for extra review.
+
+3) Instantiate
+  - Map the provider tool id back to the registered tool class (registries should store this mapping when sending definitions to the provider).
+  - Construct the instance with `new ToolClass(validatedArgs)` — the decorator-synthesized subclass expects the validated argument object as the instance input.
+  - Return a hydration result object that includes: the instantiated `ToolComponent`, full provenance (original provider response, parse result, validation result, any repairs), and the mapping between provider tool id and class name.
+
+Error handling & observability
+  - Always return structured results — do not throw plain errors from provider clients. The orchestrator should get a list of hydration results that include success/failure metadata so it can decide whether to execute, request human approval, or surface the issue in UI/traces.
+  - Log or persist provenance for each hydration attempt: original provider payload, mapped tool definition, validation errors, and any repairs. This is essential for debugging and compliance.
+
+Minimal hydration interface (suggested)
+
+```ts
+interface HydrationResult {
+  tool?: ToolComponent; // present on success
+  success: boolean;
+  errors?: Array<{ stage: 'parse' | 'validate' | 'instantiate'; message: string; detail?: unknown }>;
+  provenance: {
+    providerToolId: string;
+    originalRawArgs: string | unknown;
+    parsed?: unknown;
+    validated?: unknown;
+    validator?: { name: string; version?: string; compiledAt?: string } | null;
+    repaired?: boolean;
+  };
+}
+```
+
+Where to implement
+  - Provider clients (e.g., `src/client/ollama_client.ts`) should implement this interface and return `HydrationResult[]` from their `toolCall` method. The orchestrator can then decide to call `tool.run()` on successful hydrated instances.
+
+Notes on safety
+  - Fail-closed by default: if no authoritative schema is present and `allowNoSchema` is not set, hydration should fail with a clear error. If `allowNoSchema` is set, mark the result as unvalidated and require policy approval before execution.
+  - Repairs must be auditable and limited to a single, explicit attempt. Automatic or repeated repairs without human oversight undermine provenance.
 
 ### Safety, provenance, and policy hooks
 
