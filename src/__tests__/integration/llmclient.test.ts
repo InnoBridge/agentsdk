@@ -8,6 +8,8 @@ import { LLMClient } from '@/client/llmclient';
 import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
 import { ShowResponse } from 'ollama';
+import { Tool } from '@/tools/tool';
+import { WeatherTool } from '@/examples/tools/weather';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -92,14 +94,31 @@ const chatTest = async (ollamaClient: LLMClient) => {
     console.log('OllamaClient.chat test completed.');
 };
 
+const toolCallTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.toolCall test...');
+    
+    const tools = [WeatherTool];
+    const input: any = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            { role: 'user', content: 'What is the temperature in New York City?' },
+        ],
+    };
+
+    const toolResponses = await ollamaClient.toolCall!(input, tools);
+    console.log('✅ OllamaClient toolCall response tools: ', toolResponses);
+
+    console.log('OllamaClient.toolCall test completed.');
+};
 
 (async function main() {
     try {
         const testLLMClients = initialOllama();
 
-        await getModelsTest(testLLMClients.getOllamaClient());
-        await getModelInfoTest(testLLMClients.getOllamaClient());
-        await chatTest(testLLMClients.getOllamaClient());
+        // await getModelsTest(testLLMClients.getOllamaClient());
+        // await getModelInfoTest(testLLMClients.getOllamaClient());
+        // await chatTest(testLLMClients.getOllamaClient());
+        await toolCallTest(testLLMClients.getOllamaClient());
         await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

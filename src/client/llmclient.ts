@@ -1,6 +1,8 @@
+import { ToolComponent } from "@/tools/tool";
+
 interface LLMClient {
     chat(input: any): Promise<any>;
-    // toolCall?(input: any, tools: Tool[]): Promise<Tool[]>;
+    toolCall?(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]>;
     // stream?(input: string | Message[], handler?: { onToken?: (tok: string) => void; onError?: (err: any) => void; onClose?: () => void }, opts?: CallOptions): Promise<void>;
     getModelInfo?(modelId: string): Promise<any>;
     getModels?(): Promise<string[]>;

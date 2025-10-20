@@ -102,6 +102,14 @@ class ToolComponent {
     // are still assignable to `typeof ToolComponent` without forcing authors
     // to declare a static member. We attach an implementation below.
     static getDefinition?: () => ToolDefinition | undefined;
+
+    // Accept a single untyped/unknown parameter (canonical tool args object)
+    // and return Promise<unknown> so implementations can choose the concrete
+    // return type. Use `unknown` to encourage validation/casting inside tools.
+    async run(params?: unknown): Promise<unknown> {
+        // Base implementation is a no-op; concrete tools should override.
+        return undefined;
+    }
 }
 
 // Attach the runtime implementation for ToolComponent.getDefinition
