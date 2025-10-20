@@ -1,11 +1,18 @@
 ## Tools
 
-Tools give the agent a deterministic runtime mechanism to execute code at its disposal. This note captures what currently exists in the repository and what still needs to be built before tool calling is fully functional.
+Tools give the agent a deterministic runtime mechanism to execute code at its disposal.
 
 ### Building blocks in the codebase
 
 - **[`@Tool`](../../src/tools/tool.ts) decorator**
-  - Returns a runtime subclass of `ToolComponent`. Authors do **not** need to extend `ToolComponent` themselves; the decorator synthesizes a class that `extends ToolComponent`, invokes the original constructor, copies prototype methods, and preserves static members so decorated classes keep their behavior plus the runtime hooks.
+  - Returns a runtime subclass of `ToolComponent`. The `@Tool` decorator synthesizes a runtime subclass that extends `ToolComponent`, so authors don't need to explicitly extend `ToolComponent` themselves. It invokes the original constructor, copies prototype methods, and preserves static members so decorated classes keep their behavior plus the runtime hooks.
+  - Concrete runtime hooks provided (what "runtime hooks" means in practice):
+    1. Static metadata accessor: `static getDefinition()` and the internal `toolMetadata` symbol slot — used for provider translation, auditing, and registries.
+    2. Constructor/instantiation contract: decorator-synthesized subclass accepts the validated argument object as the instance input (used during hydrate → instantiate).
+    3. Standard entrypoint: `async run(params?: unknown): Promise<unknown>` — the agreed execution method orchestrators call on hydrated instances.
+    4. Validator attachment point (pluggable): a compiled validator can be attached at decoration or hydration time and invoked during parse→validate→instantiate.
+    5. Policy & provenance hooks: stored definition and optional annotations (e.g., `allowNoSchema`, capability tags) are readable at runtime for safety checks, logging, and UI traces.
+    6. Provider mapping link: provider clients map definitions to provider tool IDs; that mapping is captured at runtime to correlate provider `tool_call`s back to the class during hydration.
   - Attaches the authoritative definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). If `Reflect.defineMetadata` is available it is used, otherwise the symbol path is taken so consumers do not need `reflect-metadata`.
   - Exposes a static `getDefinition()` helper on the decorated class so registries and clients can read the stored definition without reaching into internals.
 
