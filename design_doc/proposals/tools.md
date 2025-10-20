@@ -4,7 +4,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 
 ### Building blocks in the codebase
 
-- **`@Tool(def)` decorator (`src/tools/tool.ts`)**
+- **[`@Tool`](../../src/tools/tool.ts) decorator**
   - Returns a runtime subclass of `ToolComponent`. Authors do **not** need to extend `ToolComponent` themselves; the decorator synthesizes a class that `extends ToolComponent`, invokes the original constructor, copies prototype methods, and preserves static members so decorated classes keep their behavior plus the runtime hooks.
   - Attaches the canonical definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). If `Reflect.defineMetadata` is available it is used, otherwise the symbol path is taken so consumers do not need `reflect-metadata`.
   - Exposes a static `getDefinition()` helper on the decorated class so registries and clients can read the stored definition without reaching into internals.
@@ -12,18 +12,29 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   ```ts
   @Tool({
     type: "function",
-    name: "get_weather",
-    description: "Fetch current weather for a city",
+    name: "get_current_weather",
+    description: "Get the current weather for a given location",
     parameters: {
-      type: "object",
-      required: ["city"],
-      properties: { city: { type: "string" } },
-    },
+        location: {
+            type: "string",
+            description: "The name of the city e.g. San Francisco, CA"
+        },
+        format: {
+            type: "string",
+            enum: ["celsius", "fahrenheit"],
+            description: "The format to return the weather in"
+        },
+        required: ["location", "format"]
+    }
   })
   class WeatherTool {
-    constructor(private readonly args: { city: string }) {}
-    async run() { /* perform the side effect */ }
-  }
+    // Implement the tool's functionality here
+
+    async run(): Promise<string> {
+        // Placeholder implementation
+        return `The current weather in.`;
+    }
+  };
   ```
 
 - **`ToolComponent` contract (`src/tools/tool.ts`)**
