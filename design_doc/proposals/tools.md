@@ -39,7 +39,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   - Tree-shaking (brief): modern bundlers (webpack, rollup, esbuild) remove unused exports and modules from the final bundle to reduce size. Because symbol-backed metadata is attached at runtime to the class object, if a tool class is completely unused and eliminated by the bundler, its metadata won't be present in the bundle either.
   - Practical note: if your application imports modules solely to register tools (for example, a central registry imports `./tools/*` to build a catalog), the bundler will keep those modules and their metadata because they're referenced. In short: unused classes are removed; explicitly imported/registered classes remain and so does their metadata.
     - The Reflect fallback requires the `reflect-metadata` polyfill in environments that don't provide `Reflect.getMetadata`/`defineMetadata`. The decorator's fallback means tests and simple builds don't need the polyfill, but production builds that rely on other metadata consumers may still include it.
-  - Exposes a static `getDefinition()` helper on the decorated class so registries and clients can read the stored definition without reaching into internals.
+  - Registries and clients should read the stored definition via the decorator's documented accessor (see the `@Tool` section above) rather than reaching into internals.
 
   ```ts
   @Tool({
@@ -72,7 +72,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
  - **[`ToolComponent`](../../src/tools/tool.ts) contract**
   - Every decorated class becomes a `ToolComponent` subclass at runtime. Constructors receive the validated argument object (the authoritative payload); runtime helpers never rely on positional arguments.
   - Implementations must override `async run(params?: unknown): Promise<unknown>`; the base implementation is a no-op that returns `undefined`. Using `unknown` encourages each tool to validate or narrow the payload before use.
-  - `ToolComponent.getDefinition()` is available on any decorated class and returns the stored `ToolDefinition` (see the `@Tool` decorator section above for details).
+  - See the `@Tool` decorator section above for details on retrieving the stored `ToolDefinition`.
 
   The authoritative `ToolComponent` implementation lives in `src/tools/tool.ts`; for reference the exported type and basic runtime look like:
 
