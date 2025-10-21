@@ -9,12 +9,12 @@ import { Tool } from '@/tools/tool';
 			type: "string",
 			description: "The name of the city e.g. San Francisco, CA"
 		},
-		format: {
+		unit: {
 			type: "string",
-			enum: ["celsius", "fahrenheit"],
-			description: "The format to return the weather in"
+			enum: ["C", "F"],
+			description: "The temperature unit to return the weather in (C or F)"
 		},
-        required: ["location", "format"]
+        required: ["location", "unit"]
 	}
 })
 class WeatherTool {

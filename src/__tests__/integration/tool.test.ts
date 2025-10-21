@@ -1,5 +1,17 @@
 import { WeatherTool } from "@/examples/tools/weather";
 import { Tool, ToolComponent, ToolDefinition } from "@/tools/tool";
+import { Config, getConfig } from "@innobridge/memoizedsingleton";
+import { WebClient } from "@/examples/tools/web_client";
+import { TemperatureUnit, WeatherClient } from "@/examples/tools/weather_client";
+
+const { CELCIUS } = TemperatureUnit;
+
+const initialConfig = () => {
+    console.log('Initializing Weather API client with base URL from config...');
+
+    new Config(['WEATHER_API_BASEURL', 'WEATHER_API_KEY']);
+    const WEATHER_API_KEY = getConfig('WEATHER_API_KEY');
+};
 
 function toolTest() {
     console.log('Starting tool tests...');
@@ -13,12 +25,23 @@ const getDefinitions = (tools: Array<typeof ToolComponent>): ToolDefinition[] =>
     return tools.map(tool => tool.getDefinition!()).filter((def): def is ToolDefinition => def !== undefined);
 };
 
+const callWeather = async () => {
+    const weatherClient: WebClient = new WeatherClient();
+    const data = await weatherClient.get!({ 
+        location: 'San Francisco', 
+        unit: CELCIUS
+    });
+    console.log("Weather Data:", data);
+}
+
 (async function main() {
     try {
         // sync test
 
-        toolTest();
- 
+        initialConfig();
+
+        // toolTest();
+        await callWeather();
 
         console.log("🎉 All integration tests passed");
     } catch (err) {
