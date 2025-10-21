@@ -2,6 +2,7 @@ import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import type { LLMClient } from '@/client/llmclient';
 import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
+import { T } from "vitest/dist/chunks/reporters.d.C-cu31ET.js";
 
 
 @Singleton
@@ -33,14 +34,16 @@ class OllamaClient extends SingletonComponent implements LLMClient {
     async toolCall(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
         // Implement tool calling logic here
         console.log("Tools: ", tools);
+        tools[0].getDefinition?.();
         const toolParams = tools
             .map(tool => {
-                if (!tool.getDefinition) return undefined;
-                const def = tool.getDefinition();
-                if (!def) return undefined;
-                return mapToolDefinitionToTool(def);
+                const def = tool.getDefinition?.();
+                if (def) {
+                    return mapToolDefinitionToTool(def);
+                }
+                return undefined;
             })
-            .filter((t): t is Tool => !!t);
+            .filter((def): def is Tool => def !== undefined);
 
         input.tools = toolParams;
         console.log("input with tools: ", JSON.stringify(input, null, 2));
