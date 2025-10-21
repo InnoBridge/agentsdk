@@ -15,9 +15,8 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
     6. Provider mapping link: provider clients map definitions to provider tool IDs; that mapping is captured at runtime to correlate provider `tool_call`s back to the class during hydration.
   - Attaches the authoritative definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). The implementation prefers `Reflect.defineMetadata` / `Reflect.getMetadata` when available (for environments that include the `reflect-metadata` polyfill), but falls back to writing the definition to a well-known Symbol property on the class when `Reflect` metadata isn't present. This avoids forcing a `reflect-metadata` dependency while still supporting environments that use it.
 
-    Why this design:
-    - Symbols are non-enumerable and won't collide with user-defined properties on the class or instance. Storing the definition on a Symbol keeps the runtime slot private and resilient to accidental overwrites.
-    - Using `Reflect` when available keeps interoperability with other libraries or tooling that rely on metadata, while the Symbol fallback avoids requiring the polyfill for unit tests or lightweight builds.
+  Why this design:
+  - Symbols are non-enumerable and won't collide with user-defined properties on the class or instance. Storing the definition on a Symbol keeps the runtime slot private and resilient to accidental overwrites.
 
     Reading the definition (recommended):
     - The decorator exposes a stable accessor `static getDefinition()` on the decorated class. Consumers should call that method to retrieve the authoritative `ToolDefinition` rather than reading private fields directly. Example:
@@ -36,8 +35,9 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
     - Avoid serializing class-level metadata into JSON. If you need to persist metadata, read it via `getDefinition()` and serialize the returned object explicitly; do not attempt to serialize the class itself.
     - If you attach additional runtime artifacts (compiled validators, precomputed scorers), prefer attaching them to the same symbol slot as separate properties (for example `{ definition, validator }`) or store them in an external WeakMap keyed by the class to avoid accidental exposure or serialization.
 
-    Security and bundling implications:
-    - Because the symbol fallback is a runtime-only artifact, it is compatible with tree-shaking: if a tool class is unused and removed by bundlers, its metadata won't be included in the runtime output. However, registries that import tool modules to register them will keep the class and its metadata alive.
+  Security and bundling implications:
+  - Tree-shaking (brief): modern bundlers (webpack, rollup, esbuild) remove unused exports and modules from the final bundle to reduce size. Because symbol-backed metadata is attached at runtime to the class object, if a tool class is completely unused and eliminated by the bundler, its metadata won't be present in the bundle either.
+  - Practical note: if your application imports modules solely to register tools (for example, a central registry imports `./tools/*` to build a catalog), the bundler will keep those modules and their metadata because they're referenced. In short: unused classes are removed; explicitly imported/registered classes remain and so does their metadata.
     - The Reflect fallback requires the `reflect-metadata` polyfill in environments that don't provide `Reflect.getMetadata`/`defineMetadata`. The decorator's fallback means tests and simple builds don't need the polyfill, but production builds that rely on other metadata consumers may still include it.
   - Exposes a static `getDefinition()` helper on the decorated class so registries and clients can read the stored definition without reaching into internals.
 
@@ -72,7 +72,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
  - **[`ToolComponent`](../../src/tools/tool.ts) contract**
   - Every decorated class becomes a `ToolComponent` subclass at runtime. Constructors receive the validated argument object (the authoritative payload); runtime helpers never rely on positional arguments.
   - Implementations must override `async run(params?: unknown): Promise<unknown>`; the base implementation is a no-op that returns `undefined`. Using `unknown` encourages each tool to validate or narrow the payload before use.
-  - `ToolComponent.getDefinition()` is available on any decorated class and returns the stored `ToolDefinition`.
+  - `ToolComponent.getDefinition()` is available on any decorated class and returns the stored `ToolDefinition` (see the `@Tool` decorator section above for details).
 
   The authoritative `ToolComponent` implementation lives in `src/tools/tool.ts`; for reference the exported type and basic runtime look like:
 
