@@ -128,59 +128,20 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 2. **Selection (optional)** – Large catalogs can be filtered with the `pickTools` proposal (`design_doc/proposals/picktools.md`) before sending definitions to the model.
 3. **Translate** – Provider clients reshape the authoritative definitions into the provider-specific format (already implemented for Ollama).
 4. **Dispatch** – The client includes the translated definitions in the chat request and calls the provider SDK.
-5. **Hydrate** – For each `tool_call` in the response, parse the arguments, validate them against the authoritative schema, and instantiate the corresponding `ToolComponent`. This step is the next major piece of work.
-6. **Execute** – The orchestrator decides when to invoke `tool.run()` on hydrated instances so that approval workflows or safety policies can intervene before side effects occur.
+5. **Hydrate** – For each `tool_call` in the response, we currently hand the raw provider payload to the tool’s static `hydration` helper (if one is defined) and let the tool decide how to interpret it. There is no framework-level parsing or schema validation yet.
+6. **Execute** – The orchestrator decides when to invoke `tool.run()` on hydrated instances so that approval workflows or safety policies can intervene before side effects occur. Because we do not enforce validation today, individual tools should defensively check their inputs before performing side effects.
 
-### Hydration (parse → validate → instantiate)
+### Hydration status (current vs. planned)
 
-Hydration is the critical runtime step that converts provider `tool_call` responses into safe, executable `ToolComponent` instances. The implementation should be conservative and auditable. The recommended micro-workflow below is intentionally explicit so provider clients can implement it consistently.
+**Current behavior**
+- Provider clients (for example `OllamaClient.toolCall`) collect the raw `tool_call` payloads and hand them to each tool’s `static hydration` method when present.
+- Tool-specific hydrators are responsible for reading `toolCall.function.arguments` and constructing an instance. There is no shared parsing, JSON conversion, or schema validation step.
+- If a tool does not implement `static hydration`, the client skips instantiation for that call.
 
-1) Parse
-  - Accept provider `tool_call.arguments` which may be a JSON object or a string (models often return stringified JSON). Attempt to parse strings into JSON using a tolerant parser (trim whitespace, handle single quotes only if present, but avoid aggressive transformations that hide errors).
-  - On parse success, produce an intermediate `rawArgs: unknown` value plus provenance metadata: original raw string, provider tool id, and source model response chunk.
-  - On parse failure, record the failure with exact input and return a structured parse error to the orchestrator (do not attempt silent repairs by default).
-
-2) Validate
-  - Use the authoritative JSON Schema attached to the decorated class (`ToolDefinition.parameters`) to validate `rawArgs`.
-  - Validators are pluggable. The doc recommends two supported modes:
-    - Eager (compile-at-decoration): compile a fast validator when the `@Tool` decorator runs and attach it to the class metadata. Faster at runtime but requires that the validation library is available at build time.
-    - Lazy (compile-at-hydration): compile or fetch a validator at hydration time. Slightly slower but avoids build-time coupling and supports dynamic validator selection per runtime environment.
-  - On validation success, produce `validatedArgs: Record<string, unknown>` and include validation provenance (validator type + version, compile-time or run-time, time taken).
-  - On validation failure, produce structured validation errors. The system should offer a single, auditable repair attempt policy (optional): run a sanitizer/repairer that is logged and appended to provenance; if repair succeeds, treat the repaired value as `validatedArgs` but mark it as repaired and untrusted for extra review.
-
-3) Instantiate
-  - Map the provider tool id back to the registered tool class (registries should store this mapping when sending definitions to the provider).
-  - Construct the instance with `new ToolClass(validatedArgs)` — the decorator-synthesized subclass expects the validated argument object as the instance input.
-  - Return a hydration result object that includes: the instantiated `ToolComponent`, full provenance (original provider response, parse result, validation result, any repairs), and the mapping between provider tool id and class name.
-
-Error handling & observability
-  - Always return structured results — do not throw plain errors from provider clients. The orchestrator should get a list of hydration results that include success/failure metadata so it can decide whether to execute, request human approval, or surface the issue in UI/traces.
-  - Log or persist provenance for each hydration attempt: original provider payload, mapped tool definition, validation errors, and any repairs. This is essential for debugging and compliance.
-
-Minimal hydration interface (suggested)
-
-```ts
-interface HydrationResult {
-  tool?: ToolComponent; // present on success
-  success: boolean;
-  errors?: Array<{ stage: 'parse' | 'validate' | 'instantiate'; message: string; detail?: unknown }>;
-  provenance: {
-    providerToolId: string;
-    originalRawArgs: string | unknown;
-    parsed?: unknown;
-    validated?: unknown;
-    validator?: { name: string; version?: string; compiledAt?: string } | null;
-    repaired?: boolean;
-  };
-}
-```
-
-Where to implement
-  - Provider clients (e.g., `src/client/ollama_client.ts`) should implement this interface and return `HydrationResult[]` from their `toolCall` method. The orchestrator can then decide to call `tool.run()` on successful hydrated instances.
-
-Notes on safety
-  - Fail-closed by default: if no authoritative schema is present and `allowNoSchema` is not set, hydration should fail with a clear error. If `allowNoSchema` is set, mark the result as unvalidated and require policy approval before execution.
-  - Repairs must be auditable and limited to a single, explicit attempt. Automatic or repeated repairs without human oversight undermine provenance.
+**Planned improvements**
+- Introduce a shared parse → validate → instantiate pipeline so tools receive typed, validated argument objects.
+- Add provenance capture (original payload, parse/validation outcomes) so orchestrators can reason about failures and apply policy.
+- Fail closed when no schema is provided unless a tool explicitly opts into `allowNoSchema`.
 
 ### Safety, provenance, and policy hooks
 
@@ -190,10 +151,10 @@ Notes on safety
 
 ### Outstanding work
 
-1. Implement hydration inside `OllamaClient.toolCall` so it returns hydrated `ToolComponent[]` (parse, validate, instantiate).
-2. Decide on the validator integration strategy (eager compile during decoration vs. lazy compile at hydration) and apply it consistently.
-3. Add OpenAI/Anthropic client adapters that reuse the authoritative metadata and hydration pipeline.
-4. Provide unit tests for parse/validate/instantiate (success and failure paths) and integration coverage once hydration lands.
+1. Upgrade `OllamaClient.toolCall` (and future clients) with the shared parse → validate → instantiate pipeline described above.
+2. Decide on the validator integration strategy (eager compile during decoration vs. lazy compile at hydration) and apply it consistently once model output stabilizes.
+3. Add OpenAI/Anthropic client adapters that reuse the authoritative metadata and future hydration pipeline.
+4. Provide unit tests that cover tool-specific hydrators today and the shared pipeline once it exists.
 5. Implement the default keyword scorer in `src/tools/pickTools.ts` so request-time filtering can rely on concrete code instead of the design doc.
 
 ### Related references

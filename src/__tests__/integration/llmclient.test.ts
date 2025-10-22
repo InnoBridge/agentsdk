@@ -129,9 +129,9 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
     try {
         const testLLMClients = initialOllama();
 
-        // await getModelsTest(testLLMClients.getOllamaClient());
-        // await getModelInfoTest(testLLMClients.getOllamaClient());
-        // await chatTest(testLLMClients.getOllamaClient());
+        await getModelsTest(testLLMClients.getOllamaClient());
+        await getModelInfoTest(testLLMClients.getOllamaClient());
+        await chatTest(testLLMClients.getOllamaClient());
         await toolCallTest(testLLMClients.getOllamaClient());
 
         await shutdownOllama(testLLMClients.getOllamaClient());
