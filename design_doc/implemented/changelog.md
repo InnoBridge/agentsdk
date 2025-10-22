@@ -51,14 +51,14 @@ Summary of recent changes to the Tools proposal and implementation:
 - Purpose: Document the runtime decorator-based tool system (`@Tool`) and the `ToolComponent` contract that lets provider adapters map model `tool_call`s to instantiated tool objects.
 - Deferral rationale: Schema/validation work is intentionally deferred because provider `tool_call` outputs are frequently inconsistent. Implementing a strict parse→validate→instantiate pipeline now would cause noisy operational failures. The decision, rationale, and outstanding policy items are recorded in the proposal.
 - Ollama integration: `OllamaClient.toolCall` now wires authoritative tool definitions into the chat request and hydrates provider `tool_call` payloads via each tool class's `static hydration` helper. There is no shared parsing/validation layer yet — tools must defensively validate/repair inputs during `hydration` or reject the call.
-- Example added: documentation includes a concrete usage snippet showing how to call `llmclient.toolCall(input, [ToolClasses...])`, receive `ToolComponent[]`, and invoke `.run()` on each instance. See `design_doc/proposals/tools.md` for the snippet.
+- Example added: documentation includes a concrete usage snippet showing how to call `llmclient.toolCall(input, [ToolClasses...])`, receive `ToolComponent[]`, and invoke `.run()` on each instance. See [tools.md](../proposals/tools.md) for the snippet.
 - Gaps/Outstanding work: constructor contract alignment (favor object-based constructors), shared parse/validate pipeline, better observability for hydration errors, and unit tests around the hydration path.
 
 Affected files and refs:
 
-- `design_doc/proposals/tools.md` — proposal and examples (this change)
-- `src/client/ollama_client.ts` — `toolCall` translation/dispatch/hydration
-- `src/tools/tool.ts` — decorator and `ToolComponent` runtime contract
+- [`tools.md`](../proposals/tools.md) — proposal and examples (this change)
+- [`ollama_client.ts`](../../src/client/ollama_client.ts) — `toolCall` translation/dispatch/hydration
+- [`tool.ts`](../../src/tools/tool.ts) — decorator and `ToolComponent` runtime contract
 
 Notes: This changelog entry captures documentation and light implementation changes (no breaking API changes). Follow ups include adding a tolerant parse/validation stage in the client library and improving test coverage for hydrators.
 
