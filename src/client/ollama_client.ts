@@ -2,7 +2,8 @@ import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import type { LLMClient } from '@/client/llmclient';
 import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
-
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import { ZodType, ZodTypeDef } from "zod";
 
 @Singleton
 class OllamaClient extends SingletonComponent implements LLMClient {
@@ -30,7 +31,7 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         return await this.client.chat({ ...input, stream: false });
     };
 
-    async toolCall(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
+    async toolCall(input: ChatRequest, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
         const toolNameToolComponentMap = new Map<string, typeof ToolComponent>();
         tools.forEach(tool => {
             const name = tool.getDefinition?.()?.name;
@@ -57,6 +58,38 @@ class OllamaClient extends SingletonComponent implements LLMClient {
             }).filter((tc): tc is ToolComponent => tc !== undefined)
             : [];
         return toolCalls;
+    };
+
+    async toStructuredOutput<TParsed>(
+        input: ChatRequest,
+        schema: ZodType<TParsed, ZodTypeDef, any>,
+    ): Promise<TParsed> {
+        const request: ChatRequest = {
+            ...input,
+            format: zodToJsonSchema(schema),
+            stream: false,
+        };
+
+        const response = await this.chat(request);
+        const content = response.message?.content;
+
+        if (content === undefined || content === null) {
+            throw new Error('Structured output response was empty.');
+        }
+
+        let candidate: unknown = content;
+
+        if (typeof content === 'string') {
+            try {
+                candidate = JSON.parse(content);
+            } catch {
+                throw new Error(
+                    'Failed to parse structured output as JSON. Ensure the model returns valid JSON matching the schema.',
+                );
+            }
+        }
+
+        return schema.parse(candidate);
     };
 
     async stop(): Promise<void> {

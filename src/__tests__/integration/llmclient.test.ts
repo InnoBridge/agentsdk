@@ -125,15 +125,91 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
     console.log('OllamaClient.toolCall test completed.');
 };
 
+import { z } from 'zod'
+
+
+const Step = z.object({
+  explanation: z.string(),
+  output: z.string(),
+});
+
+const MathReasoning = z.object({
+  steps: z.array(Step),
+  final_answer: z.string(),
+});
+
+const Country = z.object({
+  name: z.string(),
+  capital: z.string(),
+  languages: z.array(z.string()),
+});
+const structuredOutputTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput test...');
+
+    // const schema = zodToJsonSchema(Country);
+    // console.log('✅ Country schema:', schema);
+
+    // const schema = zodToJsonSchema(MathReasoning);
+    // console.log('✅ MathReasoning schema:', JSON.stringify(schema, null, 2));
+    // 
+   
+
+    const input: any = {    
+        model: 'qwen3-coder:30b',
+        messages: [
+                {
+      role: "system",
+      content:
+        "You are a helpful math tutor. Guide the user through the solution step by step.",
+    },
+    { role: "user", content: "how can I solve 8x + 7 = -23" },
+        ]
+    };
+    const result = await ollamaClient.toStructuredOutput!(input, MathReasoning);
+    console.log('✅ OllamaClient structured output response object:', result);
+    console.log('OllamaClient.toStructuredOutput - validated result:', MathReasoning.parse(result));
+
+    console.log('OllamaClient.structuredOutput test completed.');
+};
+
+    // "text": {
+    //   "format": {
+    //     "type": "json_schema",
+    //     "name": "math_reasoning",
+    //     "schema": {
+    //       "type": "object",
+    //       "properties": {
+    //         "steps": {
+    //           "type": "array",
+    //           "items": {
+    //             "type": "object",
+    //             "properties": {
+    //               "explanation": { "type": "string" },
+    //               "output": { "type": "string" }
+    //             },
+    //             "required": ["explanation", "output"],
+    //             "additionalProperties": false
+    //           }
+    //         },
+    //         "final_answer": { "type": "string" }
+    //       },
+    //       "required": ["steps", "final_answer"],
+    //       "additionalProperties": false
+    //     },
+    //     "strict": true
+    //   }
+    // }
+
+
 (async function main() {
     try {
         const testLLMClients = initialOllama();
 
-        await getModelsTest(testLLMClients.getOllamaClient());
-        await getModelInfoTest(testLLMClients.getOllamaClient());
-        await chatTest(testLLMClients.getOllamaClient());
-        await toolCallTest(testLLMClients.getOllamaClient());
-
+        // await getModelsTest(testLLMClients.getOllamaClient());
+        // await getModelInfoTest(testLLMClients.getOllamaClient());
+        // await chatTest(testLLMClients.getOllamaClient());
+        // await toolCallTest(testLLMClients.getOllamaClient());
+        await structuredOutputTest(testLLMClients.getOllamaClient());
         await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
@@ -142,4 +218,3 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
         process.exit(1);
     }
 })();
-

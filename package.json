@@ -49,6 +49,7 @@
     "@innobridge/memoizedsingleton": "^0.0.5",
     "axios": "^1.12.2",
     "ollama": "^0.6.0",
-    "openai": "^6.4.0"
+    "openai": "^6.4.0",
+    "zod-to-json-schema": "^3.24.6"
   }
 }
