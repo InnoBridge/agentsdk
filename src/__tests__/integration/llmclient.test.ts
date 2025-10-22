@@ -10,6 +10,7 @@ import { strict as assert } from 'node:assert';
 import { ShowResponse } from 'ollama';
 import { Tool, ToolComponent } from '@/tools/tool';
 import { WeatherTool } from '@/examples/tools/weather';
+import { BraveSearchTool } from '@/examples/tools/brave_search';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -23,7 +24,13 @@ class TestLLMClients {
 const initialOllama = (): TestLLMClients => {
     console.log('Initializing OllamaClient with base URL from config...');
 
-    new Config(['OLLAMA_BASE_URL', 'WEATHER_API_BASEURL', 'WEATHER_API_KEY']);
+    new Config([
+        'OLLAMA_BASE_URL', 
+        'WEATHER_API_BASEURL', 
+        'WEATHER_API_KEY',
+        'BRAVE_SEARCH_BASEURL',
+        'BRAVE_SEARCH_API_KEY',
+    ]);
     const OLLAMA_BASE_URL = getConfig('OLLAMA_BASE_URL');
 
     new OllamaClient(OLLAMA_BASE_URL!);
@@ -99,12 +106,12 @@ const chatTest = async (ollamaClient: LLMClient) => {
 
 const toolCallTest = async (ollamaClient: LLMClient) => {
     console.log('Starting OllamaClient.toolCall test...');
-    
-    const tools = [WeatherTool];
+
+    const tools = [WeatherTool, BraveSearchTool];
     const input: any = {
         model: 'qwen3-coder:30b',
         messages: [
-            { role: 'user', content: 'What is the temperature in New York City, and Beijing in celsius?' },
+            { role: 'user', content: 'What is the temperature in New York City, and Beijing in celsius? is Aws still down?' },
         ],
     };
 
