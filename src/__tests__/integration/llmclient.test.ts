@@ -8,6 +8,9 @@ import { LLMClient } from '@/client/llmclient';
 import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
 import { ShowResponse } from 'ollama';
+import { Tool, ToolComponent } from '@/tools/tool';
+import { WeatherTool } from '@/examples/tools/weather';
+import { BraveSearchTool } from '@/examples/tools/brave_search';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -21,7 +24,13 @@ class TestLLMClients {
 const initialOllama = (): TestLLMClients => {
     console.log('Initializing OllamaClient with base URL from config...');
 
-    new Config(['OLLAMA_BASE_URL']);
+    new Config([
+        'OLLAMA_BASE_URL', 
+        'WEATHER_API_BASEURL', 
+        'WEATHER_API_KEY',
+        'BRAVE_SEARCH_BASEURL',
+        'BRAVE_SEARCH_API_KEY',
+    ]);
     const OLLAMA_BASE_URL = getConfig('OLLAMA_BASE_URL');
 
     new OllamaClient(OLLAMA_BASE_URL!);
@@ -50,6 +59,9 @@ const shutdownOllama = async (ollamaClient: LLMClient) => {
         'OllamaClient instance should be removed after shutdown',
     );
 
+    const config = getApplicationContext(Config);
+    config?.stop!();
+
     console.log('✅ OllamaClient shut down.');
 };
 
@@ -66,7 +78,7 @@ const getModelsTest = async (ollamaClient: LLMClient) => {
 const getModelInfoTest = async (ollamaClient: LLMClient) => {
     console.log('Starting getModelInfoTest ...');
 
-    const modelInfo: ShowResponse = await ollamaClient.getModelInfo!('qwen3-coder:30b') as ShowResponse;
+    const modelInfo: ShowResponse = await ollamaClient.getModelInfo!('gpt-oss:20b') as ShowResponse;
 
     console.log(
         '✅ Ollama Model Info (basename): ',
@@ -92,6 +104,26 @@ const chatTest = async (ollamaClient: LLMClient) => {
     console.log('OllamaClient.chat test completed.');
 };
 
+const toolCallTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.toolCall test...');
+
+    const tools = [WeatherTool, BraveSearchTool];
+    const input: any = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            { role: 'user', content: 'What is the temperature in New York City, and Beijing in celsius? is Aws still down?' },
+        ],
+    };
+
+    const toolResponses = await ollamaClient.toolCall!(input, tools);
+
+    toolResponses.forEach(async toolResponse => {
+        const result = await toolResponse.run();
+        console.log(`Tool response run result: ${result}`);
+    });
+
+    console.log('OllamaClient.toolCall test completed.');
+};
 
 (async function main() {
     try {
@@ -100,6 +132,8 @@ const chatTest = async (ollamaClient: LLMClient) => {
         await getModelsTest(testLLMClients.getOllamaClient());
         await getModelInfoTest(testLLMClients.getOllamaClient());
         await chatTest(testLLMClients.getOllamaClient());
+        await toolCallTest(testLLMClients.getOllamaClient());
+
         await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

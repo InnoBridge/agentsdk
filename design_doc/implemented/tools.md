@@ -4,7 +4,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 
 ### Building blocks in the codebase
 
--- **[`@Tool`](../../src/tools/tool.ts) decorator**
+- **[`@Tool`](../../src/tools/tool.ts) decorator**
   - Returns a runtime subclass of `ToolComponent`. The `@Tool` decorator synthesizes a runtime subclass that extends `ToolComponent`, so authors don't need to explicitly extend `ToolComponent` themselves. It invokes the original constructor, copies prototype methods, and preserves static members so decorated classes keep their behavior plus the runtime hooks.
   - Concrete runtime hooks provided (what "runtime hooks" means in practice):
     1. Static metadata accessor: `static getDefinition()` and the internal `toolMetadata` symbol slot — used for provider translation, auditing, and registries.
@@ -100,7 +100,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   }
   ```
 
- - **Authoritative definition ([`tool.ts`](../../src/tools/tool.ts))**
+ - **Authoritative definition ([`ToolDefinition`](../../src/tools/tool.ts))**
   - "Authoritative" here means the single source-of-truth for a tool's metadata and parameter schema: it is stored verbatim on the decorated class and is used for validation, provider translations, and auditing.
   - The definition includes `type: "function"`, `name`, optional `description`, optional `parameters` JSON Schema, `strict` (for providers that support it), and `allowNoSchema` + `noSchemaMode` flags for the explicit escape hatch.
   - `parameters` is treated as required for production tools. If authors opt into `allowNoSchema`, the runtime expects downstream systems to mark the tool as unvalidated and enforce additional guardrails.
@@ -111,7 +111,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 
 ### Provider integration status
 
--- **[`ollama_client.ts`](../../src/client/ollama_client.ts)**
+- **[`Ollama`](../../src/client/ollama_client.ts)**
   - Translation: implemented. `mapToolDefinitionToTool` reshapes the authoritative definition into Ollama’s nested `{ type: 'function', function: { … } }` payload so it can be passed directly into the SDK request.
   - Dispatch: implemented. `toolCall` attaches the mapped tools to the chat request and sends it through the SDK (logging both the request and response for now).
   - Hydration: implemented, but minimal. `toolCall` wires raw provider payloads into each tool class via `static hydration`. There is no shared parsing/validation yet, so tools must handle malformed arguments defensively.
@@ -122,7 +122,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 ### Expected tool-calling flow
 
 1. **Catalog & registration** – Tool classes are defined with `@Tool({ … })` and imported so the decorator can attach metadata.
-2. **Selection (optional)** – Large catalogs can be filtered with the `pickTools` proposal (`picktools.md`) before sending definitions to the model.
+2. **Selection (optional)** – Large catalogs can be filtered with the `pickTools` proposal (`design_doc/proposals/picktools.md`) before sending definitions to the model.
 3. **Translate** – Provider clients reshape the authoritative definitions into the provider-specific format (already implemented for Ollama).
 4. **Dispatch** – The client includes the translated definitions in the chat request and calls the provider SDK.
 5. **Hydrate** – For each `tool_call` in the response, we currently hand the raw provider payload to the tool’s static `hydration` helper (if one is defined) and let the tool decide how to interpret it. There is no framework-level parsing or schema validation yet.
@@ -226,6 +226,6 @@ If the provider returns malformed arguments, a tool’s `hydration` helper shoul
 
 ### Related references
 
--- [`tool.ts`](../../src/tools/tool.ts) – decorator, `ToolComponent`, and authoritative definition implementation
--- [`ollama_client.ts`](../../src/client/ollama_client.ts) – provider adapter that already maps authoritative definitions to Ollama
--- [`picktools.md`](../../design_doc/proposals/picktools.md) – tool selection and scoring proposal that feeds the tool-calling flow
+- [`src/tools/tool.ts`](../../src/tools/tool.ts) – decorator, `ToolComponent`, and authoritative definition implementation
+- [`src/client/ollama_client.ts`](../../src/client/ollama_client.ts) – provider adapter that already maps authoritative definitions to Ollama
+- [`design_doc/proposals/picktools.md`](../../design_doc/proposals/picktools.md) – tool selection and scoring proposal that feeds the tool-calling flow
