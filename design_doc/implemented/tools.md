@@ -105,19 +105,16 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   - The definition includes `type: "function"`, `name`, optional `description`, optional `parameters` JSON Schema, `strict` (for providers that support it), and `allowNoSchema` + `noSchemaMode` flags for the explicit escape hatch.
   - `parameters` is treated as required for production tools. If authors opt into `allowNoSchema`, the runtime expects downstream systems to mark the tool as unvalidated and enforce additional guardrails.
 
-### Authoritative schema and validation policy
+### Authoritative schema and validation policy (deferred)
 
-1. **Parse → validate → instantiate** is the required sequence. Provider payloads must be parsed (handling stringified JSON), validated against the authoritative schema, and only then used to construct the tool instance.
-2. Validators are intentionally pluggable. The repository includes an example helper (`src/tools/tool_decorator_example.md`) illustrating how to compile and attach a validator, but the production code does not force a particular library.
-3. Validation failures should produce structured errors (and optionally a single repair attempt) before rejecting the tool call. Executing a tool with unvalidated arguments is considered unsafe.
-4. Provider translations must operate on copies; the authoritative schema stored on the class remains untouched for auditing and future validations.
+> The authoritative schema and validation guidance has been intentionally deferred for now because current LLM/provider outputs are frequently inconsistent and do not reliably produce well-formed `tool_call` arguments. Implementing a strict, repo-level parse → validate → instantiate pipeline before provider behavior stabilizes would cause frequent operational failures and noisy errors. The full policy is recorded under "Outstanding work" as a deferred task; see that section for the exact policy points and next steps.
 
 ### Provider integration status
 
 - **[`Ollama`](../../src/client/ollama_client.ts)**
   - Translation: implemented. `mapToolDefinitionToTool` reshapes the authoritative definition into Ollama’s nested `{ type: 'function', function: { … } }` payload so it can be passed directly into the SDK request.
   - Dispatch: implemented. `toolCall` attaches the mapped tools to the chat request and sends it through the SDK (logging both the request and response for now).
-  - Hydration: **pending**. `toolCall` currently returns an empty array; parse/validate/instantiate still needs to be wired in so callers receive hydrated `ToolComponent` instances.
+  - Hydration: implemented, but minimal. `toolCall` wires raw provider payloads into each tool class via `static hydration`. There is no shared parsing/validation yet, so tools must handle malformed arguments defensively.
 
 - **OpenAI / Anthropic**
   - Translation: trivial (flat `{ name, description, parameters, strict }`) but no client exists yet. Future adapters will be responsible for translating definitions and invoking their respective SDKs in the same way Ollama does.
@@ -130,6 +127,62 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 4. **Dispatch** – The client includes the translated definitions in the chat request and calls the provider SDK.
 5. **Hydrate** – For each `tool_call` in the response, we currently hand the raw provider payload to the tool’s static `hydration` helper (if one is defined) and let the tool decide how to interpret it. There is no framework-level parsing or schema validation yet.
 6. **Execute** – The orchestrator decides when to invoke `tool.run()` on hydrated instances so that approval workflows or safety policies can intervene before side effects occur. Because we do not enforce validation today, individual tools should defensively check their inputs before performing side effects.
+
+Example (`OllamaClient.toolCall`):
+
+```ts
+async toolCall(input: ChatRequest, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
+  // 1) Build a lookup from tool name -> class so we can hydrate later
+  const registry = new Map<string, typeof ToolComponent>();
+  tools.forEach((toolClass) => {
+    const def = toolClass.getDefinition?.();
+    if (def?.name) registry.set(def.name, toolClass);
+  });
+
+  // 2) Translate authoritative definitions into the provider shape
+  input.tools = tools
+    .map((toolClass) => toolClass.getDefinition?.())
+    .filter((def): def is ToolDefinition => !!def)
+    .map(mapToolDefinitionToTool);
+
+  // 3) Dispatch the request
+  const response = await this.chat({ ...input, stream: false });
+
+  // 4) Hydrate each tool_call into a ToolComponent instance (no shared parsing yet)
+  return (response.message.tool_calls ?? [])
+    .map((toolCall) => registry.get(toolCall.function.name)?.hydration?.(toolCall))
+    .filter((instance): instance is ToolComponent => instance !== undefined);
+}
+```
+
+Future iterations will insert parse/validate steps between stages (2) and (4) once provider outputs stabilize.
+
+Usage example (calling the client and executing the hydrated tools):
+
+```ts
+import { ChatRequest } from 'ollama';
+import { OllamaClient } from '@/client/ollama_client';
+import { WeatherTool } from '@/examples/tools/weather';
+import { BraveSearchTool } from '@/examples/tools/brave_search';
+
+const client = new OllamaClient('http://127.0.0.1:11434');
+
+const input: ChatRequest = {
+  model: 'qwen3-coder:30b',
+  messages: [
+    { role: 'user', content: 'Is AWS still down, and what is the weather in NYC?' },
+  ],
+};
+
+const hydratedTools = await client.toolCall(input, [WeatherTool, BraveSearchTool]);
+
+for (const toolInstance of hydratedTools) {
+  const result = await toolInstance.run();
+  console.log('tool result:', result);
+}
+```
+
+If the provider returns malformed arguments, a tool’s `hydration` helper should either repair the payload before instantiation or throw so the orchestrator can decide whether to retry or skip execution.
 
 ### Hydration status (current vs. planned)
 
@@ -149,6 +202,12 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 - Hydration must capture provenance: original arguments, validation results, repairs, and the mapping between provider tool IDs and tool classes. This data powers debugging, UI traces, and compliance reviews.
 - Decorator metadata is extensible; additional safety or capability annotations can be added without changing the runtime contract, enabling policy-driven selection and execution filters.
 
+### Current gaps and risks
+
+- **Constructor contract drift** – The design expects constructors to accept a validated argument object, but many examples still use positional parameters. Until we align on an object-based convention (or add translation helpers), hydration logic must adapt per tool class.
+- **No shared parse/validation** – Provider payloads are forwarded straight into each tool’s `hydration` method. Without at least a tolerant JSON parse, malformed arguments surface as runtime errors deep inside tools.
+- **Sparse observability** – We currently drop hydration failures on the floor (returning `undefined`). Recording structured errors will make it easier to debug mis-specified tools or provider regressions.
+
 ### Outstanding work
 
 1. Upgrade `OllamaClient.toolCall` (and future clients) with the shared parse → validate → instantiate pipeline described above.
@@ -156,6 +215,14 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 3. Add OpenAI/Anthropic client adapters that reuse the authoritative metadata and future hydration pipeline.
 4. Provide unit tests that cover tool-specific hydrators today and the shared pipeline once it exists.
 5. Implement the default keyword scorer in `src/tools/pickTools.ts` so request-time filtering can rely on concrete code instead of the design doc.
+6. Deferred: authoritative schema & validation policy
+
+  The authoritative schema and validation policy is deferred until provider behavior is more stable. When implemented, it should include:
+
+  1. Parse → validate → instantiate is the required sequence. Provider payloads must be parsed (handling stringified JSON), validated against the authoritative schema, and only then used to construct the tool instance.
+  2. Validators are intentionally pluggable. The repository includes an example helper (`src/tools/tool_decorator_example.md`) illustrating how to compile and attach a validator, but the production code does not force a particular library.
+  3. Validation failures should produce structured errors (and optionally a single repair attempt) before rejecting the tool call. Executing a tool with unvalidated arguments is considered unsafe.
+  4. Provider translations must operate on copies; the authoritative schema stored on the class remains untouched for auditing and future validations.
 
 ### Related references
 
