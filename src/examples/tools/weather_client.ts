@@ -67,7 +67,7 @@ class WeatherClient implements WebClient {
         const tempC = data?.current?.temp_c;
         const tempF = data?.current?.temp_f;
 
-        const temp: number = unit === TemperatureUnit.CELSIUS.toString() ? tempC : tempF;
+        const temp: number = unit === TemperatureUnit.CELSIUS ? tempC : tempF;
 
         const condition = data?.current?.condition?.text ?? '';
 

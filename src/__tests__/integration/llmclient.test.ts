@@ -78,7 +78,7 @@ const getModelsTest = async (ollamaClient: LLMClient) => {
 const getModelInfoTest = async (ollamaClient: LLMClient) => {
     console.log('Starting getModelInfoTest ...');
 
-    const modelInfo: ShowResponse = await ollamaClient.getModelInfo!('oss') as ShowResponse;
+    const modelInfo: ShowResponse = await ollamaClient.getModelInfo!('gpt-oss:20b') as ShowResponse;
 
     console.log(
         '✅ Ollama Model Info (basename): ',

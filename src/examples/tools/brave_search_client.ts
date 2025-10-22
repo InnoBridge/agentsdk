@@ -1,7 +1,6 @@
 import axios, { AxiosInstance } from "axios";
 import { getConfig } from "@innobridge/memoizedsingleton";
 import { WebClient } from '@/examples/tools/web_client';
-import { title } from "process";
 
 interface Query {
     query: string;

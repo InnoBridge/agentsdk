@@ -38,7 +38,7 @@ interface ToolDefinition {
 
 function Tool(toolDefinition: ToolDefinition) {
     const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & ToolComponent) & { getDefinition?: () => ToolDefinition | undefined } => {
-        // Crete a new class that extends ToolComponent
+        // Create a new class that extends ToolComponent
         const Decorated = class extends ToolComponent {
             constructor(...args: any[]) {
                 super(...args);
