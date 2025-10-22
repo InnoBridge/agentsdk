@@ -2,7 +2,6 @@ import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import type { LLMClient } from '@/client/llmclient';
 import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
-import { T } from "vitest/dist/chunks/reporters.d.C-cu31ET.js";
 
 
 @Singleton
@@ -32,9 +31,13 @@ class OllamaClient extends SingletonComponent implements LLMClient {
     };
 
     async toolCall(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
-        // Implement tool calling logic here
-        console.log("Tools: ", tools);
-        tools[0].getDefinition?.();
+        const toolNameToolComponentMap = new Map<string, typeof ToolComponent>();
+        tools.forEach(tool => {
+            const name = tool.getDefinition?.()?.name;
+            if (name) {
+                toolNameToolComponentMap.set(name, tool);
+            }
+        });
         const toolParams = tools
             .map(tool => {
                 const def = tool.getDefinition?.();
@@ -46,10 +49,14 @@ class OllamaClient extends SingletonComponent implements LLMClient {
             .filter((def): def is Tool => def !== undefined);
 
         input.tools = toolParams;
-        console.log("input with tools: ", JSON.stringify(input, null, 2));
-        const result = await this.client.chat({ ...input, stream: false });
-        console.log("Ollama tool call result: ", JSON.stringify(result, null, 2));
-        return [];
+        const result = await this.chat({ ...input, stream: false });
+        const toolCalls: ToolComponent[] = result.message.tool_calls
+            ? result.message.tool_calls.map(toolCall => {
+                const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
+                return toolComponent?.hydration?.(toolCall);
+            }).filter((tc): tc is ToolComponent => tc !== undefined)
+            : [];
+        return toolCalls;
     };
 
     async stop(): Promise<void> {

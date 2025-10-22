@@ -103,6 +103,14 @@ class ToolComponent {
     // to declare a static member. We attach an implementation below.
     static getDefinition?: () => ToolDefinition | undefined;
 
+    // A static hydrator attached to the decorated class. It accepts a provider
+    // tool call (the raw LLM/provider call object) and returns an instantiated
+    // ToolComponent when the arguments validate against the authoritative
+    // ToolDefinition.parameters. Implementations may override this static on
+    // a per-tool basis by providing their own static member; the decorator
+    // will attach a default implementation when absent.
+    static hydration?: (providerCall?: any) => ToolComponent | undefined;
+
     // Accept a single untyped/unknown parameter (canonical tool args object)
     // and return Promise<unknown> so implementations can choose the concrete
     // return type. Use `unknown` to encourage validation/casting inside tools.

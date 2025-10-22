@@ -1,4 +1,7 @@
 import { Tool } from '@/tools/tool';
+import { ToolCall } from 'ollama';
+import { WebClient } from './web_client';
+import { WeatherClient } from './weather_client';
 
 @Tool({
 	type: "function",
@@ -11,18 +14,34 @@ import { Tool } from '@/tools/tool';
 		},
 		unit: {
 			type: "string",
-			enum: ["C", "F"],
-			description: "The temperature unit to return the weather in (C or F)"
+			enum: ["celsius", "fahrenheit"],
+			description: "The temperature unit to return the weather in (Celsius or Fahrenheit)"
 		},
         required: ["location", "unit"]
 	}
 })
 class WeatherTool {
-    // Implement the tool's functionality here
+    
+    private weatherClient: WebClient = new WeatherClient();
+    private location: string;
+    private unit?: string;
+
+    constructor(location: string, unit?: string) {
+        this.location = location;
+        this.unit = unit;
+    }
+    
+    static hydration = (toolCall: ToolCall): WeatherTool | undefined => {
+        const { location, unit } = toolCall.function.arguments;
+        return new WeatherTool(location, unit);
+    };
 
     async run(): Promise<string> {
-        // Placeholder implementation
-        return `The current weather in.`;
+        const weather = await this.weatherClient.get?.({
+            location: this.location,
+            unit: this.unit
+        });
+        return `The current weather in ${weather.name}, ${weather.region}, ${weather.country} is ${weather.temp}° ${weather.unit}. Condition: ${weather.condition}.`;
     }
 };
 

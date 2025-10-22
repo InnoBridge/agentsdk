@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { getConfig } from "@innobridge/memoizedsingleton";
+import { getConfig, Singleton } from "@innobridge/memoizedsingleton";
 import { WebClient } from '@/examples/tools/web_client';
 
 interface WeatherInput {
@@ -8,8 +8,8 @@ interface WeatherInput {
 };
 
 enum TemperatureUnit {
-    CELCIUS = 'C',
-    FARENHEIGHT = 'F',
+    CELSIUS = 'celsius',
+    FAHRENHEIT = 'fahrenheit',
 };
 
 interface WeatherOutput {
@@ -49,14 +49,13 @@ class WeatherClient implements WebClient {
     }
 
     async get(input: WeatherInput): Promise<WeatherOutput> {
-        console.log("WeatherClient get called with input:", input);
         const path = '/current.json';
         const params = {
             key: this.apiKey,
             q: input.location,
             aqi: 'no',
         };
-        const unit = input.unit ?? TemperatureUnit.CELCIUS;
+        const unit = input.unit ?? TemperatureUnit.CELSIUS;
 
         const res = await this.client.get(path, { params });
         const data = res.data;
@@ -68,12 +67,7 @@ class WeatherClient implements WebClient {
         const tempC = data?.current?.temp_c;
         const tempF = data?.current?.temp_f;
 
-        let temp: number;
-        if (unit === TemperatureUnit.CELCIUS) {
-            temp = typeof tempC === 'number' ? tempC : (typeof tempF === 'number' ? (tempF - 32) * (5 / 9) : NaN);
-        } else {
-            temp = typeof tempF === 'number' ? tempF : (typeof tempC === 'number' ? (tempC * 9) / 5 + 32 : NaN);
-        }
+        const temp: number = unit === TemperatureUnit.CELSIUS.toString() ? tempC : tempF;
 
         const condition = data?.current?.condition?.text ?? '';
 

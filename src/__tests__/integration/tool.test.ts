@@ -5,7 +5,7 @@ import { WebClient } from "@/examples/tools/web_client";
 import { TemperatureUnit, WeatherClient } from "@/examples/tools/weather_client";
 import { BraveSearchClient, SearchOutput } from "@/examples/tools/brave_search_client";
 
-const { CELCIUS } = TemperatureUnit;
+const { CELSIUS } = TemperatureUnit;
 
 const initialConfig = () => {
     console.log('Initializing Weather API client with base URL from config...');
@@ -39,7 +39,7 @@ const callWeather = async () => {
     const weatherClient: WebClient = new WeatherClient();
     const data = await weatherClient.get!({ 
         location: 'San Francisco', 
-        unit: CELCIUS
+        unit: CELSIUS
     });
     console.log("Weather Data:", data);
 }
