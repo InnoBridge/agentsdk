@@ -64,6 +64,9 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         input: ChatRequest,
         schema: ZodType<TParsed, ZodTypeDef, any>,
     ): Promise<TParsed> {
+        console.log('OllamaClient.toStructuredOutput called with schema:', JSON.stringify(
+            zodToJsonSchema(schema), null, 2
+        ));
         const request: ChatRequest = {
             ...input,
             format: zodToJsonSchema(schema),

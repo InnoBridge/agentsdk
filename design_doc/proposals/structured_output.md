@@ -1,30 +1,34 @@
 ## Structured Output
 
 ### Overview
-Several providers now support structured responses when the caller supplies a schema. Rather than duplicating schema wiring at each call site, we extend `LLMClient` with an optional `toStructuredOutput` helper that:
+Structured responses let us move beyond free-form text by validating the model’s reply against a schema. Instead of forcing each caller to wire format instructions manually, we expose an optional `toStructuredOutput` helper on `LLMClient`. When a provider supports schemas (e.g. Ollama JSON mode), the helper:
 
-- accepts a prompt or message array plus a schema descriptor
-- adapts the provider request (e.g. attaches a JSON schema for Ollama)
-- returns the validated payload so downstream code can work with typed data immediately
-
-Providers that do not support structured replies simply omit the helper.
+- accepts the standard chat request plus a parser/schema,
+- injects provider-specific hints (like `format`),
+- parses and validates the reply before returning it as typed data.
 
 ### Interface: `LLMClient`
 
 ```ts
-interface StructuredOutputParser<TParsed> {
-  parse(input: unknown): TParsed;
-}
+import { ToolComponent } from '@/tools/tool';
+import { ZodType, ZodTypeDef } from 'zod';
 
 interface LLMClient {
   chat(input: any): Promise<any>;
   toolCall?(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]>;
-  toStructuredOutput?<TParsed>(input: any, parser: StructuredOutputParser<TParsed>): Promise<TParsed>;
+  toStructuredOutput?<TParsed>(
+    input: any,
+    schema: ZodType<TParsed, ZodTypeDef, any>,
+  ): Promise<TParsed>;
+  // stream?(...): Promise<void>;
   getModelInfo?(modelId: string): Promise<any>;
   getModels?(): Promise<string[]>;
   stop?(): Promise<void>;
 }
 ```
+
+- `TParsed` is inferred from the supplied schema (e.g. a Zod object). We specialize the signature around `ZodType` because it is the canonical validator in the SDK today.
+- Providers that do not support structured replies simply omit the optional method.
 
 ### Implementation: `OllamaClient`
 
@@ -38,16 +42,90 @@ class OllamaClient extends SingletonComponent implements LLMClient {
     input: ChatRequest,
     schema: ZodType<TParsed, ZodTypeDef, any>,
   ): Promise<TParsed> {
-    const request = { ...input, format: zodToJsonSchema(schema), stream: false };
+    const request: ChatRequest = {
+      ...input,
+      format: zodToJsonSchema(schema),
+      stream: false,
+    };
+
     const response = await this.chat(request);
     const raw = response.message?.content;
-    const candidate = typeof raw === 'string' ? JSON.parse(raw) : raw;
+
+    if (raw === undefined || raw === null) {
+      throw new Error('Structured output response was empty.');
+    }
+
+    let candidate: unknown = raw;
+
+    if (typeof raw === 'string') {
+      try {
+        candidate = JSON.parse(raw);
+      } catch {
+        throw new Error(
+          'Failed to parse structured output as JSON. Ensure the model returns valid JSON matching the schema.',
+        );
+      }
+    }
+
     return schema.parse(candidate);
   }
 }
 ```
 
+export interface ResponseFormatTextJSONSchemaConfig {
+  /**
+   * The name of the response format. Must be a-z, A-Z, 0-9, or contain underscores
+   * and dashes, with a maximum length of 64.
+   */
+  name: string;
+
+  /**
+   * The schema for the response format, described as a JSON Schema object. Learn how
+   * to build JSON schemas [here](https://json-schema.org/).
+   */
+  schema: { [key: string]: unknown };
+
+  /**
+   * The type of response format being defined. Always `json_schema`.
+   */
+  type: 'json_schema';
+
+  /**
+   * A description of what the response format is for, used by the model to determine
+   * how to respond in the format.
+   */
+  description?: string;
+
+  /**
+   * Whether to enable strict schema adherence when generating the output. If set to
+   * true, the model will always follow the exact schema defined in the `schema`
+   * field. Only a subset of JSON Schema is supported when `strict` is `true`. To
+   * learn more, read the
+   * [Structured Outputs guide](https://platform.openai.com/docs/guides/structured-outputs).
+   */
+  strict?: boolean | null;
+}
+
 ### Usage
+
+@Data({
+    name: string,
+    description: string
+})
+class MeetingSchema {
+    private topic: string;
+    private attendees: string[];
+    actionItems: ActionItem[];
+
+    constructor(topic: string, attendees: string[], actionItems: ActionItem[]) 
+}
+
+-> MeetingSchema extends StructuredOutput
+
+class StructuredOutput {
+    getSchema();
+    hydrate()
+}
 
 ```ts
 import { z } from 'zod';
@@ -82,6 +160,6 @@ console.log(summary.topic);
 ```
 
 ### Notes
-- Ollama supports a `format` field on the `ChatRequest`. Passing a JSON Schema instructs the model to emit a response matching the schema.
-- The helper accepts any parser with a `parse` method. We use Zod schemas today and convert them to JSON Schema via `zod-to-json-schema` for Ollama.
-- The helper returns the parsed payload. Callers that need provider metadata can still fall back to `chat` for raw responses.
+- Ollama exposes a `format` option for JSON Schema; `toStructuredOutput` converts the Zod schema to that representation.
+- Returning `TParsed` keeps the API consistent with other helpers: callers get typed data directly and can always fall back to `chat` if they need raw responses.
+- If future providers demand a different parser interface, we can generalize the signature or introduce adapters without changing existing call sites.
