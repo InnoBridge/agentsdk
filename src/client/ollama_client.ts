@@ -4,6 +4,7 @@ import type { LLMClient } from '@/client/llmclient';
 import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ZodType, ZodTypeDef } from "zod";
+import { StructuredOutput } from "@/tools/structured_output";
 
 @Singleton
 class OllamaClient extends SingletonComponent implements LLMClient {
@@ -60,40 +61,25 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         return toolCalls;
     };
 
-    async toStructuredOutput<TParsed>(
+    async toStructuredOutput(
         input: ChatRequest,
-        schema: ZodType<TParsed, ZodTypeDef, any>,
-    ): Promise<TParsed> {
-        console.log('OllamaClient.toStructuredOutput called with schema:', JSON.stringify(
-            zodToJsonSchema(schema), null, 2
-        ));
+        structuredOutput: typeof StructuredOutput,
+    ): Promise<void> {
+        const schema = structuredOutput.getSchema?.();
+        if (!schema) {
+            throw new Error('DTO class does not have a schema defined.');
+        }
+
         const request: ChatRequest = {
             ...input,
-            format: zodToJsonSchema(schema),
+            format: schema,
             stream: false,
         };
-
         const response = await this.chat(request);
         const content = response.message?.content;
 
-        if (content === undefined || content === null) {
-            throw new Error('Structured output response was empty.');
-        }
-
-        let candidate: unknown = content;
-
-        if (typeof content === 'string') {
-            try {
-                candidate = JSON.parse(content);
-            } catch {
-                throw new Error(
-                    'Failed to parse structured output as JSON. Ensure the model returns valid JSON matching the schema.',
-                );
-            }
-        }
-
-        return schema.parse(candidate);
-    };
+        console.log('OllamaClient.toStructuredOutput response content:', content);
+    }
 
     async stop(): Promise<void> {
         // Call the Component stop implementation on the superclass to avoid recursion

@@ -1,3 +1,5 @@
+import { J } from "vitest/dist/chunks/reporters.d.C-cu31ET.js";
+
 type JsonSchema = Record<string, unknown>;
 
 const copyPrototypeChain = (
@@ -31,12 +33,20 @@ interface SchemaDefinition {
     type?: string;
     name?: string;
     description?: string;
-    properties?: JsonSchema;
+    properties?: Record<string, JsonSchema>;
+    required?: string[];
+    additionalProperties?: boolean;
 }
 
-function Structure(schemaDefinition: SchemaDefinition) {
+// new
+const structureRegistry = new Map<string, any>();
+
+function DTO(schemaDefinition: SchemaDefinition) {
     schemaDefinition.type = schemaDefinition.type || 'object';
     const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & StructuredOutput) & { getSchema?: () => SchemaDefinition | undefined } => {
+    
+        inferSchemaFromConstructor(Target, schemaDefinition);
+
         // Create a new class that extends StructuredOutput
         const Decorated = class extends StructuredOutput {
             constructor(...args: any[]) {
@@ -87,6 +97,8 @@ function Structure(schemaDefinition: SchemaDefinition) {
             }
         });
 
+        structureRegistry.set(Decorated.name, Decorated);
+
         return Decorated as any;
     };
         
@@ -115,8 +127,128 @@ StructuredOutput.getSchema = function() {
 
 const schemaMetadata = Symbol('structured:schema');
 
+const primitiveTypeMap = new Map<any, JsonSchema>([
+    [String, { type: 'string' }],
+    [Number, { type: 'number' }],
+    [Boolean, { type: 'boolean' }],
+    [Date, { type: 'string', format: 'date-time' }],
+]);
+
+const singularize = (name: string): string => {
+    if (name.endsWith('ies')) return name.slice(0, -3) + 'y';
+    if (name.endsWith('ses')) return name.slice(0, -2);
+    if (name.endsWith('s')) return name.slice(0, -1);
+    return name;
+};
+
+const capitalize = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
+
+const cloneSchema = (schema: SchemaDefinition | JsonSchema | undefined): JsonSchema | undefined => {
+    if (!schema) return undefined;
+    return JSON.parse(JSON.stringify(schema));
+};
+
+const getConstructorParamTypes = (Target: any): any[] => {
+    if (typeof (Reflect as any).getMetadata === 'function') {
+        return (Reflect as any).getMetadata('design:paramtypes', Target) || [];
+    }
+    return [];
+};
+
+const mapAssignments = (constructorBody: string): Array<{ property: string; parameter: string }> => {
+    const assignments: Array<{ property: string; parameter: string }> = [];
+    const assignmentRegex = /this\.(\w+)\s*=\s*(\w+)/g;
+    let match: RegExpExecArray | null;
+    while ((match = assignmentRegex.exec(constructorBody)) !== null) {
+        assignments.push({ property: match[1], parameter: match[2] });
+    }
+    return assignments;
+};
+
+const inferSchemaFromConstructor = (Target: any, schemaDefinition: SchemaDefinition) => {
+    if (schemaDefinition.properties) return;
+
+    const ctorSource = Target.prototype?.constructor?.toString?.();
+    if (!ctorSource) return;
+
+    const ctorMatch = ctorSource.match(/constructor\s*\(([^)]*)\)\s*{([\s\S]*)}/);
+    if (!ctorMatch) return;
+
+    const params = ctorMatch[1]
+        .split(',')
+        .map((p: string) => p.trim())
+        .filter((value: string) => Boolean(value));
+    if (!params.length) return;
+
+    const assignments = mapAssignments(ctorMatch[2]);
+    if (!assignments.length) return;
+
+    const paramTypes = getConstructorParamTypes(Target);
+
+    const properties: Record<string, JsonSchema> = {};
+    const required = new Set<string>();
+
+    assignments.forEach(({ property, parameter }) => {
+        const index = params.indexOf(parameter);
+        if (index === -1) return;
+        const paramType = paramTypes[index];
+        const propertySchema = buildSchemaForParam(property, parameter, paramType);
+        if (propertySchema) {
+            properties[property] = propertySchema;
+            required.add(property);
+        }
+    });
+
+    if (Object.keys(properties).length) {
+        schemaDefinition.properties = properties;
+        schemaDefinition.required = Array.from(required);
+        if (schemaDefinition.type === 'object' && schemaDefinition.additionalProperties === undefined) {
+            schemaDefinition.additionalProperties = false;
+        }
+    }
+};
+
+const resolveRegisteredSchema = (name: string): JsonSchema | undefined => {
+    const cls = structureRegistry.get(name);
+    return cloneSchema(cls?.getSchema?.());
+};
+
+const inferredStringSchema: JsonSchema = { type: 'string' };
+
+const buildSchemaForParam = (property: string, parameter: string, paramType: any): JsonSchema | undefined => {
+    if (primitiveTypeMap.has(paramType)) {
+        return primitiveTypeMap.get(paramType);
+    }
+
+    const singularParam = capitalize(singularize(parameter));
+    const singularProp = capitalize(singularize(property));
+
+    if (paramType === Array || (!paramType && /s$/.test(property))) {
+        const registryEntrySchema = resolveRegisteredSchema(singularParam) ?? resolveRegisteredSchema(singularProp);
+        return {
+            type: 'array',
+            items: registryEntrySchema ?? {},
+        };
+    }
+
+    if (typeof paramType === 'function') {
+        const nestedSchema = cloneSchema(paramType.getSchema?.()) ?? resolveRegisteredSchema(paramType.name);
+        if (nestedSchema) {
+            return nestedSchema;
+        }
+    }
+
+    const registryFallback = resolveRegisteredSchema(singularParam) ?? resolveRegisteredSchema(singularProp);
+    if (registryFallback) {
+        return registryFallback;
+    }
+
+    // Fallback when type cannot be determined — assume string to keep schema usable.
+    return inferredStringSchema;
+};
+
 export {
     StructuredOutput,
-    Structure,
+    DTO,
     SchemaDefinition
 };

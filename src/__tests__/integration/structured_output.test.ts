@@ -1,18 +1,6 @@
-import { SchemaDefinition, Structure, StructuredOutput } from '@/tools/structured_output';
-import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { SchemaDefinition, DTO, StructuredOutput } from '@/tools/structured_output';
 
-const ZodStep = z.object({
-  explanation: z.string(),
-  output: z.string(),
-});
-
-const ZodMathReasoning = z.object({
-  steps: z.array(ZodStep),
-  final_answer: z.string(),
-});
-
-@Structure({
+@DTO({
     type: 'object',
     name: 'Step',
     description: 'Represents a single step in the reasoning process.'
@@ -27,7 +15,7 @@ class Step {
     }
 }
 
-@Structure({
+@DTO({
     type: 'object',
     name: 'MathReasoning',
     description: 'Represents the step-by-step reasoning process for solving a math problem.'
@@ -48,8 +36,6 @@ const getDefinitions = (structure: Array<typeof StructuredOutput>): SchemaDefini
 
 const runStructuredOutputTest = () => {
     console.log('Starting structured output tests...');
-    // const jsonSchema = zodToJsonSchema(ZodMathReasoning);
-    // console.log('Generated JSON Schema:', JSON.stringify(jsonSchema, null, 2));
     const schemas = getDefinitions([MathReasoning]); 
     console.log('MathReasoning schema from decorator:', JSON.stringify(schemas, null, 2));
 
