@@ -12,6 +12,7 @@ import { WeatherTool } from '@/examples/tools/weather';
 import { BraveSearchTool } from '@/examples/tools/brave_search';
 import { DTO, StructuredOutput } from '@/tools/structured_output';
 import { array } from '@/models/structured_output';
+import { A } from 'ollama/dist/shared/ollama.27169772.mjs';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -166,30 +167,163 @@ class MathReasoning {
     }
 }
 
+interface ArithmeticOperation {
+    getOrder(): number;
+    getStaticNumber(): number;
+    getSymbol(): string;
+    operate(providedNumber: number): number;
+};
+
 @DTO({
     type: 'object',
     name: 'AdditionOperation',
-    description: 'Represents an addition operation.',
+    description: `Represents an addition operation, 
+    where order is the position of the operation in the list.
+    staticNumber is the number term added to the other term.`,
     properties: {
-        operand1: 'number',
-        operand2: 'number',
+        order: 'number',
+        staticNumber: 'number',
     },
-    required: ['operand1', 'operand2']
+    required: ['order', 'staticNumber']
 })
-class AdditionOperation {
-    private operand1: number;
-    private operand2: number;
-    
-    constructor(operand1: number, operand2: number) {
-        console.log("Creating AdditionOperation with", operand1, operand2);
-        this.operand1 = operand1;
-        this.operand2 = operand2;
+class AdditionOperation implements ArithmeticOperation {
+    private order: number;
+    private staticNumber: number;
+
+    constructor(order: number, staticNumber: number) {
+        this.order = order;
+        this.staticNumber = staticNumber;
     }
 
-    operate(): number {
-        console.log("typeof operand1:", typeof this.operand1);
-        console.log("typeof operand2:", typeof this.operand2);
-        return this.operand1 + this.operand2;
+    getOrder(): number {
+        return this.order;
+    }
+
+    getSymbol(): string {
+        return '+';
+    }
+
+    getStaticNumber(): number {
+        return this.staticNumber;
+    }
+
+    operate(providedNumber: number): number {
+        return this.staticNumber + providedNumber;
+    }
+}
+
+
+@DTO({
+    type: 'object',
+    name: 'SubtractionOperation',
+    description: `Represents a subtraction operation, 
+    where order is the position of the operation in the list.
+    staticNumber is the number term subtracted from the other term.`,
+    properties: {
+        order: 'number',
+        staticNumber: 'number',
+    },
+    required: ['order', 'staticNumber']
+})
+class SubtractionOperation implements ArithmeticOperation {
+    private order: number;
+    private staticNumber: number;
+
+    constructor(order: number, staticNumber: number) {
+        this.order = order;
+        this.staticNumber = staticNumber;
+    }
+
+    getOrder(): number {
+        return this.order;
+    }
+
+    getSymbol(): string {
+        return '-';
+    }
+
+    getStaticNumber(): number {
+        return this.staticNumber;
+    }
+
+    operate(providedNumber: number): number {
+        return providedNumber - this.staticNumber;
+    }
+}
+
+@DTO({
+    type: 'object',
+    name: 'MultiplicationOperation',
+    description: `Represents a multiplication operation, 
+    where order is the position of the operation in the list.
+    staticNumber is the number term multiplied to the other term.`,
+    properties: {
+        order: 'number',
+        staticNumber: 'number',
+    },
+    required: ['order', 'staticNumber']
+})
+class MultiplicationOperation implements ArithmeticOperation {
+    private order: number;
+    private staticNumber: number;
+
+    constructor(order: number, staticNumber: number) {
+        this.order = order;
+        this.staticNumber = staticNumber;
+    }
+
+    getOrder(): number {
+        return this.order;
+    }
+
+    getSymbol(): string {
+        return '*';
+    }
+
+    getStaticNumber(): number {
+        return this.staticNumber;
+    }
+
+    operate(providedNumber: number): number {
+        return this.staticNumber * providedNumber;
+    }
+}
+
+@DTO({
+    type: 'object',
+    name: 'DivisionOperation',
+    description: `Represents a division operation, 
+    where order is the position of the operation in the list.
+    staticNumber is the number term the other term is divided by should not be zero.`,
+    properties: {
+        order: 'number',
+        staticNumber: 'number',
+    },
+    required: ['order', 'staticNumber']
+})
+class DivisionOperation implements ArithmeticOperation {
+    private order: number;
+    private staticNumber: number;
+
+    constructor(order: number, staticNumber: number) {
+        this.order = order;
+        this.staticNumber = staticNumber;
+    }
+
+    getOrder(): number {
+        return this.order;
+    }
+
+    getSymbol(): string {
+        return '/';
+    }
+
+    getStaticNumber(): number {
+        return this.staticNumber;
+    }
+
+    operate(providedNumber: number): number {
+        return providedNumber / this.staticNumber;
     }
 }
 
@@ -198,25 +332,36 @@ class AdditionOperation {
     name: 'ArithmeticOperations',
     description: 'Represents a basic arithmetic operation.',
     properties: {
-        additionOperations: { type: 'array', items: { $ref: '#/components/schemas/AdditionOperation' } },
+        additionOperations: array(AdditionOperation),
+        subtractionOperations: array(SubtractionOperation),
+        multiplicationOperations: array(MultiplicationOperation),
+        divisionOperations: array(DivisionOperation)
     },
-    required: ['additionOperations']
+    required: ['additionOperations', 'subtractionOperations', 'multiplicationOperations', 'divisionOperations']
 })
 class ArithmeticOperations {
-    additionOperations: AdditionOperation[];
+    arithmeticOperations: ArithmeticOperation[];
 
-    constructor(additionOperations: AdditionOperation[]) {
-        this.additionOperations = additionOperations;
-    }
-
-    getAdditionOperations(): AdditionOperation[] {
-        return this.additionOperations;
+    constructor(
+        additionOperations: AdditionOperation[], 
+        subtractionOperations: SubtractionOperation[],
+        multiplicationOperations: MultiplicationOperation[],
+        divisionOperations: DivisionOperation[]) {
+        this.arithmeticOperations = [
+            ...additionOperations,
+            ...subtractionOperations,
+            ...multiplicationOperations,
+            ...divisionOperations
+        ];
+        // Sort operations by their order
+        this.arithmeticOperations.sort((a, b) => a.getOrder() - b.getOrder());
     }
 
     compute(): number {
         let result = 0;
-        for (const operation of this.additionOperations) {
-            result += operation.operate();
+        for (const operation of this.arithmeticOperations) {
+            result = operation.operate(result);
+            console.log(`Operation ${operation.getOrder()}: ${operation.getStaticNumber()} ${operation.getSymbol()} ${result} = ${operation.operate(result)}`);
         }
         return result;
     }
@@ -249,7 +394,9 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
         messages: [
             {
                 role: 'user',
-                content: 'Perform the following additions and provide the results in a JSON array: 15 + 27, 34 + 56, 78 + 89.'
+                content: `<think>Perform a series of arithmetic operations less than 12 starting 
+                from 0 that and computes to 74
+                 where the order of the operations are consecutive.</think>`
             }
         ],
     };
@@ -262,11 +409,9 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
     console.log('✅ OllamaClient structured output arithmetic operations response object:', result);
     // console.log('Arithmetic Operations:', (result as ArithmeticOperations).getArithmeticOperations());
 
-    const arithmeticOps: AdditionOperation[] = (result as ArithmeticOperations).getAdditionOperations();
-    arithmeticOps.forEach((op, index) => {
-        console.log(`Operation ${index + 1}: ${op}`);
-        console.log('operate result:', op.operate());
-    });
+    const computedResult = (result as ArithmeticOperations).compute();
+    console.log('Computed result of all operations:', computedResult);
+
     // arithmeticOps.forEach((op, index) => {
         // console.log(`Operation ${index + 1}: ${op.operand1} + ${op.operand2} = ${op.operate()}`);
     // });
@@ -288,8 +433,8 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
         // await chatTest(testLLMClients.getOllamaClient());
         // await toolCallTest(testLLMClients.getOllamaClient());
         // await structuredOutputTest(testLLMClients.getOllamaClient());
-        await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
-        // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
+        // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
+        await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

@@ -1,9 +1,11 @@
-import Ajv, { ErrorObject, Schema } from "ajv";
+import Ajv from "ajv";
 import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, array } from "@/models/structured_output";
 import { copyPrototypeChain } from "@/utils/prototype_helper";
 import { buildJSONFromSchema } from "@/utils/schema_helper";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
+
+const schemaMetadata = Symbol('structured:schema');
 
 const structureRegistry = new Map<string, any>();
 
@@ -77,7 +79,6 @@ function DTO(schemaDefinition: SchemaDefinition) {
 
 class StructuredOutput {
     constructor(..._args: any[]) {
-        // Initialization logic if needed
     }
 
     static getSchema?: () => JsonSchema | undefined;
@@ -123,46 +124,6 @@ StructuredOutput.validate = function(
     // Here you would implement the actual validation logic
     return { valid: false, errors: validator.errors, candidate: hydrationRecipe, originalCandidate: originalHydrationRecipe, repairs };
 };
-
-const schemaMetadata = Symbol('structured:schema');
-
-const capitalize = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
-
-const cloneSchema = (schema: SchemaDefinition | JsonSchema | undefined): JsonSchema | undefined => {
-    if (!schema) return undefined;
-    return JSON.parse(JSON.stringify(schema));
-};
-
-// const resolveOptionalProperties = (Target: any): Set<string> => {
-//     if (optionalPropertiesCache.has(Target)) {
-//         return optionalPropertiesCache.get(Target)!;
-//     }
-
-//     const optionalProperties = new Set<string>();
-//     const stack = new Error().stack;
-//     const sourcePath = extractSourcePathFromStack(stack);
-//     if (sourcePath) {
-//         try {
-//             const source = readFileSync(sourcePath, "utf8");
-//             const parsed = parseOptionalPropertiesFromSource(source, Target.name);
-//             parsed.forEach((property) => optionalProperties.add(property));
-//         } catch {
-//             // ignore filesystem or parsing errors; fall back to empty optional set
-//         }
-//     }
-
-//     optionalPropertiesCache.set(Target, optionalProperties);
-//     return optionalProperties;
-// };
-
-
-
-const resolveRegisteredSchema = (name: string): JsonSchema | undefined => {
-    const cls = structureRegistry.get(name);
-    return cloneSchema(cls?.getSchema?.());
-};
-
-const inferredStringSchema: JsonSchema = { type: 'string' };
 
 
 StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput | undefined {
@@ -343,85 +304,8 @@ const buildPropertyArgument = (
             return undefined;
         default:
             console.log(`Unsupported schema type for property ${propertyName}:`, propertySchema.type);
+            throw new Error(`Unsupported schema type for property ${propertyName}: ${propertySchema.type}`);
     }
-};
-
-
-// StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput | undefined {
-//     let recipe = hydrationRecipe;
-
-//     if (typeof recipe === 'string') {
-//         try {
-//             recipe = JSON.parse(recipe);
-//         } catch (_err) {
-//             return undefined;
-//         }
-//     }
-
-//     if (recipe === null || typeof recipe !== 'object') {
-//         return undefined;
-//     }
-
-//     const schema = this.getSchema?.();
-//     const constructor = this as unknown as { new (...args: any[]): StructuredOutput };
-//     const result = hydrateWithConstructor(constructor, recipe, schema);
-
-//     return result as StructuredOutput | undefined;
-// };
-
-// const hydrateWithConstructor = (
-//     constructor: { new (...args: any[]): StructuredOutput } | StructuredOutputConstructor,
-//     hydrationRecipe: unknown,
-//     schema?: SchemaDefinition | JsonSchema
-// ): StructuredOutput | undefined => {
-
-//     const existingHydrator = (constructor as StructuredOutputConstructor).hydrate;
-//     if (typeof existingHydrator === 'function' && existingHydrator !== StructuredOutput.hydrate) {
-//         return existingHydrator.call(constructor, hydrationRecipe) as StructuredOutput;
-//     }
-//     const target = Object.create((constructor as any).prototype) as StructuredOutput;
-//     const schemaProperties = (schema as SchemaDefinition | undefined)?.properties ?? {};
-//     Object.entries(hydrationRecipe as Record<string, unknown>).forEach(([hydrationKey, hydrationValue]) => {
-//         const schemaProperty = schemaProperties[hydrationKey];
-//         (target as Record<string, unknown>)[hydrationKey] = hydrateValue(hydrationValue, schemaProperty);
-//     });
-
-//     return target;
-// };
-
-// const hydrateValue = (hydrationValue: unknown, schema?: SchemaDefinition): unknown => {
-//     if (schema && typeof schema === 'object') {
-//         const schemaType = (schema as any).type;
-
-//         if (schemaType === 'array' && Array.isArray(hydrationValue)) {
-//             const itemSchema = (schema as any).items as SchemaDefinition | undefined;
-//             const itemCtor = resolveConstructorFromSchema(itemSchema);
-//             return hydrationValue.map((item) =>
-//                 itemCtor ? hydrateWithConstructor(itemCtor, item, itemSchema) ?? item : hydrateValue(item, itemSchema)
-//             );
-//         }
-
-//         const ctor = resolveConstructorFromSchema(schema as any);
-//         if (ctor && hydrationValue && typeof hydrationValue === 'object') {
-//             return hydrateWithConstructor(ctor, hydrationValue, schema as SchemaDefinition) ?? hydrationValue;
-//         }
-//     }
-
-//     return hydrationValue;
-// };
-
-type StructuredOutputConstructor = {
-    new (...args: any[]): StructuredOutput;
-    hydrate?: (validatedResponse: unknown) => StructuredOutput | undefined;
-};
-
-const resolveConstructorFromSchema = (schema?: SchemaDefinition): StructuredOutputConstructor | undefined => {
-    if (!schema || typeof schema !== 'object') return undefined;
-    const refName = (schema as any).name || (schema as any).name;
-    if (refName && structureRegistry.has(refName)) {
-        return structureRegistry.get(refName);
-    }
-    return undefined;
 };
 
 export {
