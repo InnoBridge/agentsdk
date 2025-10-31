@@ -20,7 +20,6 @@ const buildJSONFromSchema = (
 
     const properties = buildPropertySchema(schemaDefinition.properties, resolveStructuredSchema);
     jsonSchema.properties = properties;
-    console.log("Built JSON Schema:", jsonSchema);
     return jsonSchema;
 };
 
@@ -50,14 +49,11 @@ const buildSchemaValue = (
         case "function": {
     
             const resolved = resolveStructuredSchema(schemaValue);
-            console.log("resolved schema for function:", resolved);
-            console.log("schemaValue function:", schemaValue);
             if (resolved) return resolved;
             throw new Error(`Unsupported function schema value: ${schemaValue.name ?? schemaValue}`);
         }
         case "object": {
 
-            console.log("schemaValue object:", (schemaValue as any));
             if (schemaValue === null) {
                 throw new Error("Null schema values are not supported");
             }
@@ -72,9 +68,7 @@ const buildSchemaValue = (
             }
 
             if ((schemaValue as any).type === "array") {
-                console.log("schemaValue array:", schemaValue);
                 const items = (schemaValue as any).items;
-                console.log("items:", items);
                 return {
                     type: "array",
                     items: buildSchemaValue(items, resolveStructuredSchema)

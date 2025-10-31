@@ -361,7 +361,7 @@ class ArithmeticOperations {
         let result = 0;
         for (const operation of this.arithmeticOperations) {
             result = operation.operate(result);
-            console.log(`Operation ${operation.getOrder()}: ${operation.getStaticNumber()} ${operation.getSymbol()} ${result} = ${operation.operate(result)}`);
+            console.log(`Operation ${operation.getOrder()}: ${result} ${operation.getSymbol()} ${operation.getStaticNumber()} = ${operation.operate(result)}`);
         }
         return result;
     }
@@ -395,7 +395,7 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
             {
                 role: 'user',
                 content: `<think>Perform a series of arithmetic operations less than 12 starting 
-                from 0 that and computes to 74
+                from 3 that and computes to 74
                  where the order of the operations are consecutive.</think>`
             }
         ],

@@ -7,7 +7,6 @@ type JsonSchema = Record<string, unknown>;
 type SchemaValue = "string" | "number" | "boolean" | Record<string, unknown> | Array<SchemaValue> | any;
 
 const array = (value: SchemaValue): SchemaValue => {
-    console.log("array schema value:", value);
     return {
     type: 'array',
     items: value,

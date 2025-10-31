@@ -69,14 +69,11 @@ class OllamaClient extends SingletonComponent implements LLMClient {
             throw new Error('DTO class does not have a schema defined.');
         }
 
-        console.log("schema:", schema);
-
         let request: ChatRequest = {
             ...input,
             format: schema,
             stream: false,
         };
-        console.log("request:", request);
         let response = await this.chat(request);
         let hydrationRecipe = response.message?.content;
 

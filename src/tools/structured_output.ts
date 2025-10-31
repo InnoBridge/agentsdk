@@ -128,7 +128,6 @@ StructuredOutput.validate = function(
 
 StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput | undefined {
     let recipe = hydrationRecipe;
-    console.log("dtoRegistry: ", dtoRegistry);
     if (typeof recipe === 'string') {
         try {
             recipe = JSON.parse(recipe);
@@ -139,9 +138,7 @@ StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput
         return undefined;
     }
 
-    console.log("Hydrating recipe: ", recipe);
     const schema = (this as any)[schemaMetadata];
-    console.log("Schema properties", schema?.properties);
     return hydrateWithConstructor(this, recipe as JsonSchema);    
 };
 
@@ -179,9 +176,8 @@ type ConstructorArgument = string | number | boolean | StructuredOutput | Struct
 
 const mapSchemaPropertyToConstructorArgument = (properties: Record<string, any>, recipe: JsonSchema, required: string[]): Map<string, ConstructorArgument> => {
     const propertyToConstructorArgumentMap = new Map<string, ConstructorArgument>();
-    console.log("recipe", recipe);
     for (const [propertyName, propertySchema] of Object.entries(properties)) {
-        console.log("Mapping property:", propertyName, "with schema:", propertySchema);
+        
         const propertyValue = buildPropertyArgument(
             propertyName, 
             propertySchema, 
@@ -199,11 +195,11 @@ const buildPropertyArgument = (
     propertySchema: any, 
     recipe: JsonSchema, 
     required: boolean) => {
-        console.log("Building property argument for:", propertyName, "with schema:", propertySchema);
+        
     switch (propertySchema.type) {        
         case "string":
             const stringValue = recipe[propertyName];
-            console.log("Building string argument for property:", propertyName, "with value:", stringValue);
+            
             if (typeof stringValue !== 'string' && required) {
                 throw new Error(`Property ${propertyName} is required to be a string, but got: ${stringValue}`);
             } else if (typeof stringValue === 'string') {
@@ -213,7 +209,7 @@ const buildPropertyArgument = (
             }
         case "number":
             const numberValue = recipe[propertyName];
-            console.log("Building number argument for property:", propertyName, "with value:", numberValue);
+            
             if ((numberValue === null || numberValue === undefined) && required) {
                 throw new Error(`Property ${propertyName} is required to be a number, but got: ${numberValue}`);
             }
@@ -224,14 +220,14 @@ const buildPropertyArgument = (
                 const trimmed = numberValue.trim();
                 if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
                     const coerced = Number(trimmed);
-                    console.log(`Coerced numeric string for ${propertyName}:`, numberValue, '->', coerced);
+                    
                     return coerced;
                 }
             }
             return undefined;
         case "boolean":
             const booleanValue = recipe[propertyName];
-            console.log("Building boolean argument for property:", propertyName, "with value:", booleanValue);
+            
             if ((booleanValue === null || booleanValue === undefined) && required) {
                 throw new Error(`Property ${propertyName} is required to be a boolean, but got: ${booleanValue}`);
             }
@@ -257,7 +253,7 @@ const buildPropertyArgument = (
             }
 
             const itemType = propertySchema.items?.type;
-            console.log("Building array argument for property:", propertyName, "with item type:", itemType, "and value:", arrayValue, "propertySchema:", propertySchema);
+            
             switch (itemType) {
                 case "object": {
                     const dto = getRegisteredDto(propertySchema.items.name);
@@ -293,17 +289,13 @@ const buildPropertyArgument = (
         }
         case "object":
             const objectValue = recipe[propertyName];
-            console.log("Building object argument for property:", propertyName, "with value:", objectValue);
             const dto = getRegisteredDto(propertySchema.name);
-            console.log("Resolved DTO for object property:", dto);
             if (dto && typeof dto.hydrate === 'function') {
                 const hydratedObject = dto.hydrate(objectValue);
-                console.log("Hydrated object for property:", propertyName, "->", hydratedObject);
                 return hydratedObject;
             }
             return undefined;
         default:
-            console.log(`Unsupported schema type for property ${propertyName}:`, propertySchema.type);
             throw new Error(`Unsupported schema type for property ${propertyName}: ${propertySchema.type}`);
     }
 };
