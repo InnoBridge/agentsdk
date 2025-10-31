@@ -31,7 +31,7 @@ class WeatherTool {
         this.unit = unit;
     }
     
-    static hydration = (toolCall: ToolCall): WeatherTool | undefined => {
+    static hydrate = (toolCall: ToolCall): WeatherTool | undefined => {
         const { location, unit } = toolCall.function.arguments;
         return new WeatherTool(location, unit);
     };

@@ -1,31 +1,6 @@
 type JsonSchema = Record<string, unknown>;
 
-const copyPrototypeChain = (
-  sourceProto: object,
-  targetProto: object,
-  stopProto: object
-) => {
-  const visited = new Set<string>();
-  let proto: any = sourceProto;
-
-  while (proto && proto !== stopProto && proto !== Object.prototype) {
-    for (const name of Object.getOwnPropertyNames(proto)) {
-      if (name === 'constructor') continue;
-      if (visited.has(name)) continue;
-
-      const descriptor = Object.getOwnPropertyDescriptor(proto, name);
-      if (!descriptor) continue;
-
-      if (!Object.prototype.hasOwnProperty.call(targetProto, name)) {
-        Object.defineProperty(targetProto, name, descriptor);
-      }
-
-      visited.add(name);
-    }
-
-    proto = Object.getPrototypeOf(proto);
-  }
-};
+import { copyPrototypeChain } from "../utils/prototype_helper";
 
 interface ToolDefinition {
     type: "function";
@@ -109,7 +84,7 @@ class ToolComponent {
     // ToolDefinition.parameters. Implementations may override this static on
     // a per-tool basis by providing their own static member; the decorator
     // will attach a default implementation when absent.
-    static hydration?: (providerCall?: any) => ToolComponent | undefined;
+    static hydrate?: (providerCall?: any) => ToolComponent | undefined;
 
     // Accept a single untyped/unknown parameter (canonical tool args object)
     // and return Promise<unknown> so implementations can choose the concrete

@@ -7,10 +7,17 @@ import {
 import { LLMClient } from '@/client/llmclient';
 import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
-import { ShowResponse } from 'ollama';
-import { Tool, ToolComponent } from '@/tools/tool';
+import { ChatRequest, ShowResponse } from 'ollama';
 import { WeatherTool } from '@/examples/tools/weather';
 import { BraveSearchTool } from '@/examples/tools/brave_search';
+import {
+    MathReasoning,
+    AdditionOperation,
+    ArithmeticOperations,
+    UserProfile,
+    TelemetryReading,
+} from '@/__tests__/models/structured_output';
+import { StructuredOutput } from '@/tools/structured_output';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -125,16 +132,140 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
     console.log('OllamaClient.toolCall test completed.');
 };
 
+const dtoStructuredOutputMathReasoningTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.DTO structuredOutput test...');
+
+    const input: any = {    
+        model: 'qwen3-coder:30b',
+        messages: [
+                {
+                    role: "system",
+                    content: "You are a helpful math tutor. Guide the user through the solution step by step.",
+            },
+            { role: "user", content: "how can I solve 8x + 7 = -23" },
+        ]
+    };
+    const result = await ollamaClient.toStructuredOutput!(input, MathReasoning, 5);
+    console.log('✅ OllamaClient DTO structured output response object:', result);
+
+    console.log('OllamaClient.DTO structuredOutput test completed.');
+};
+
+const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput arithmetic operations test...');
+
+    const input: any = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'user',
+                content: `<think>Perform a series of arithmetic operations less than 12 starting 
+                from 3 that and computes to 74
+                 where the order of the operations are consecutive.</think>`
+            }
+        ],
+    };
+
+    console.log('MathReasoning :', JSON.stringify((MathReasoning as any).getSchema?.(), null, 2));
+    console.log('ArithmeticOperations schema definition:', JSON.stringify((ArithmeticOperations as any).getSchema?.(), null, 2));
+    console.log('ArithmeticOperation schema definition:', JSON.stringify((AdditionOperation as any).getSchema?.(), null, 2));
+
+    const result = await ollamaClient.toStructuredOutput!(input, ArithmeticOperations, 5);
+    console.log('✅ OllamaClient structured output arithmetic operations response object:', result);
+    // console.log('Arithmetic Operations:', (result as ArithmeticOperations).getArithmeticOperations());
+
+    const computedResult = (result as ArithmeticOperations).compute();
+    console.log('Computed result of all operations:', computedResult);
+
+    // arithmeticOps.forEach((op, index) => {
+        // console.log(`Operation ${index + 1}: ${op.operand1} + ${op.operand2} = ${op.operate()}`);
+    // });
+    // if (result instanceof ArithmeticOperations) {
+        // const computedResult = result.compute();
+        // console.log('Computed sum of all addition operations:', computedResult);
+    // }
+    
+    console.log('OllamaClient.structuredOutput arithmetic operations test completed.');
+};
+
+const structuredOutputUserProfileTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput user profile test...');
+
+    const input: ChatRequest = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'system',
+                content:
+                    'You are an onboarding assistant. Output a JSON user profile that matches the provided schema exactly.',
+            },
+            {
+                role: 'user',
+                content:
+                    'Create a profile for the user Ada Lovelace who lives in London and prefers email updates. Include one previous address.',
+            },
+        ],
+    };
+
+    const result = await ollamaClient.toStructuredOutput!(input, UserProfile, 3);
+    console.log('✅ OllamaClient structured output user profile:', result);
+
+    console.log('OllamaClient.structuredOutput user profile test completed.');
+};
+
+const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput raw telemetry test...');
+
+    const input: ChatRequest = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'system',
+                content:
+                    'Return only JSON that conforms to the telemetry schema. Use realistic numbers and strings.',
+            },
+            {
+                role: 'user',
+                content:
+                    'Report the latest reading for device sensor-123 located in the lab. Temperature is 21.5°C, humidity 55%, device currently online.',
+            },
+        ],
+    };
+
+    const rawContent = await ollamaClient.toStructuredOutputRaw!(input, TelemetryReading);
+    console.log('Raw telemetry payload:', rawContent);
+
+    if (!rawContent) {
+        throw new Error('Expected raw structured output content for telemetry');
+    }
+
+    const validation = (TelemetryReading as typeof StructuredOutput).validate?.(rawContent);
+    console.log('Telemetry validation result:', validation);
+
+    if (!validation?.valid) {
+        throw new Error('Telemetry payload failed validation');
+    }
+
+    const hydrated = (TelemetryReading as typeof StructuredOutput).hydrate?.(rawContent);
+    console.log('Hydrated telemetry instance:', hydrated);
+
+    console.log('OllamaClient.structuredOutput raw telemetry test completed.');
+};
+
+
 (async function main() {
     try {
         const testLLMClients = initialOllama();
 
-        await getModelsTest(testLLMClients.getOllamaClient());
-        await getModelInfoTest(testLLMClients.getOllamaClient());
-        await chatTest(testLLMClients.getOllamaClient());
-        await toolCallTest(testLLMClients.getOllamaClient());
-
-        await shutdownOllama(testLLMClients.getOllamaClient());
+        // await getModelsTest(testLLMClients.getOllamaClient());
+        // await getModelInfoTest(testLLMClients.getOllamaClient());
+        // await chatTest(testLLMClients.getOllamaClient());
+        // await toolCallTest(testLLMClients.getOllamaClient());
+        // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
+        // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
+        // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
+        await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
+        // await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
     } catch (err) {
@@ -142,4 +273,3 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
         process.exit(1);
     }
 })();
-

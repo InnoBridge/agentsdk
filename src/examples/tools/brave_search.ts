@@ -23,7 +23,7 @@ class BraveSearchTool {
         this.query = query;
     }
 
-    static hydration = (toolCall: ToolCall): BraveSearchTool | undefined => {
+    static hydrate = (toolCall: ToolCall): BraveSearchTool | undefined => {
         try {
             console.log('Hydrating BraveSearchTool from tool call:', toolCall);
             const { query } = toolCall.function.arguments;
