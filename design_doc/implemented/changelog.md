@@ -4,7 +4,8 @@
 | -----:| ---- | --------- | -------- | -- | ------------- |
 | [1](#1---llm-client) | 2025-10-17 | [LLMClient](./llmclient.md) | | [Implement LLMClient](https://github.com/InnoBridge/agentsdk/pull/1) |  |
 | | 2025-10-18 | [LLMClient](./llmclient.md) | | [Change to OllamaSDK](https://github.com/InnoBridge/agentsdk/pull/2)|  |
-| [2](#2---tools) | 2025-10-21 | [Tools](../proposals/tools.md) | | [Implement Tools](https://github.com/InnoBridge/agentsdk/pull/3) |  
+| [2](#2---tools) | 2025-10-21 | [Tools](../proposals/tools.md) | | [Implement Tools](https://github.com/InnoBridge/agentsdk/pull/3) |  |
+| [3](#3---structured-outputs) | 2025-10-31 | [Structured Output](./structured_output.md) | | [Implement Structured Output](https://github.com/InnoBridge/agentsdk/pull/4) |  |
 
 <a id="1---llm-client"></a>
 
@@ -61,5 +62,19 @@ Affected files and refs:
 - [`tool.ts`](../../src/tools/tool.ts) — decorator and `ToolComponent` runtime contract
 
 Notes: This changelog entry captures documentation and light implementation changes (no breaking API changes). Follow ups include adding a tolerant parse/validation stage in the client library and improving test coverage for hydrators.
+
+
+<a id="3---structured-outputs"></a>
+
+## 3. Structured Outputs
+
+Highlights from [structured_output.md](./structured_output.md):
+
+- Captures the runtime architecture built around the `StructuredOutput` base class, `@DTO` decorator, schema cache, Ajv-backed validator, and recursive hydrator.
+- Documents how `getSchema()` derives nested schemas and how `hydrate()` re-instantiates nested DTO graphs from model responses.
+- LLM integration: [`OllamaClient.toStructuredOutput`](../../src/client/ollama_client.ts) shows how schema generation, validation, and hydration plug into provider calls end-to-end.
+- Records best practices and follow-up work (enum support, potential `anyOf` handling) alongside type-coercion behavior.
+
+Related implementation work: [Implement Structured Output](https://github.com/InnoBridge/agentsdk/pull/4).
 
 
