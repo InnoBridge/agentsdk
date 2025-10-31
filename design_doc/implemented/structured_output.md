@@ -7,9 +7,9 @@ Because `agentsdk` derives the schema directly from the class, the prompt contra
 
 The runtime takes care of the heavy lifting:
 
-- `getSchema()` emits the cached JSON Schema representation for the DTO.
-- `validate()` checks a model response against that schema and reports repair attempts or Ajv errors.
-- `hydrate()` turns the validated payload back into a real instance, traversing arrays and nested DTOs recursively.
+- [`getSchema()`](../../src/tools/structured_output.ts) — emits the cached JSON Schema representation for the DTO. The `DTO` decorator attaches the canonical schema to the decorated class; schema assembly is performed by [`buildJSONFromSchema`](../../src/utils/structured_output_helper.ts).
+- [`validate()`](../../src/tools/structured_output.ts) — checks a model response against that schema and reports repair attempts or Ajv errors. See [`validate()`](../../src/tools/structured_output.ts) for the implementation (it uses Ajv and returns a `ValidatedResult`).
+- [`hydrate()`](../../src/tools/structured_output.ts) — turns the validated payload back into a real instance, traversing arrays and nested DTOs recursively. The runtime entry [`hydrate()`](../../src/tools/structured_output.ts) delegates to [`hydrateWithConstructor`](../../src/utils/structured_output_helper.ts) and the property helpers (`buildPropertyArgument`) to construct instances.
 
 The result: callers consume DTO instances, not brittle strings or ad-hoc parsers.
 
@@ -28,23 +28,23 @@ Structured output spans a slim runtime plus supporting helpers. The diagram belo
 └────────────────────┘                                           └────────────────────┘
 ```
 
-- **DTO decorator (`src/tools/structured_output.ts`)** captures constructor metadata and the declared schema fragment, then registers the class by constructor and logical name.
-- **Schema cache and registry** map DTO names to their schema definitions and constructors so `getSchema()` stays fast and nested references resolve during hydration.
+- **[`DTO` decorator](../../src/tools/structured_output.ts)** captures constructor metadata and the declared schema fragment, then registers the class by constructor and logical name.
+- **Schema cache and registry** map DTO names to their schema definitions and constructors. [`getSchema()`](../../src/tools/structured_output.ts) recursively walks nested `StructuredOutput` classes to inline their schemas so downstream providers receive a complete document in one call.
 - **StructuredOutput base** exposes the public API (`getSchema()`, `validate()`, `hydrate()`) and orchestrates validation plus hydration.
 - **Validator** wraps Ajv with lazy compilation, optional JSON parsing, and a consistent `{ valid, payload, errors }` response shape.
-- **Hydrator** prepares constructor arguments property-by-property, handling arrays, nested DTOs, and primitive coercion before invoking the original constructor with `Reflect.construct`.
+- **Hydrator** prepares constructor arguments property-by-property, handling arrays, nested DTOs, and primitive coercion before invoking the original constructor with `Reflect.construct`. [`hydrate()`](../../src/tools/structured_output.ts) recursively instantiates nested `StructuredOutput` objects straight from the LLM response so complex graphs materialize automatically.
 
-External layers—such as `OllamaClient.toStructuredOutput`—consume this API by retrieving the schema, submitting it to the provider, and passing the raw response back through `validate()` and `hydrate()`.
+External layers—such as [`OllamaClient.toStructuredOutput`](../../src/client/ollama_client.ts)—consume this API by retrieving the schema, submitting it to the provider, and passing the raw response back through `validate()` and `hydrate()`.
 
 ## How it works
 1. **Runtime schema generation**  
-   Decorated classes expose `StructuredOutput.getSchema()`. The schema is built once when the decorator runs by walking the class metadata supplied to `@DTO`.
+    Decorated classes expose [`StructuredOutput.getSchema()`](../../src/tools/structured_output.ts). The schema is built once when the decorator runs by walking the class metadata supplied to [`@DTO`](../../src/tools/structured_output.ts); schema assembly is implemented in [`buildJSONFromSchema`](../../src/utils/structured_output_helper.ts).
 
 2. **Validation**  
-   `StructuredOutput.validate()` compiles the schema with Ajv. You can pass either a JSON string or a pre-parsed object; the helper returns whether the payload is valid plus any repair attempts and Ajv errors.
+    [`StructuredOutput.validate()`](../../src/tools/structured_output.ts) compiles the schema with Ajv. You can pass either a JSON string or a pre-parsed object; see the implementation in `../../src/tools/structured_output.ts` which returns a `ValidatedResult` and records any repair attempts.
 
 3. **Hydration**  
-   `StructuredOutput.hydrate()` converts the (validated) payload into a class instance. Nested DTOs and arrays are hydrated recursively so consumers receive fully typed objects.
+    [`StructuredOutput.hydrate()`](../../src/tools/structured_output.ts) converts the (validated) payload into a class instance. The runtime `hydrate()` delegates to [`hydrateWithConstructor`](../../src/utils/structured_output_helper.ts) and helpers such as [`buildPropertyArgument`](../../src/utils/structured_output_helper.ts) to recursively hydrate nested DTOs and arrays.
 
 ## Declaring a DTO
 Use the `@DTO` annotation and extend `StructuredOutput`.  
@@ -138,6 +138,37 @@ const result = ArithmeticOperations.validate(recipe);
 if (!result.valid) {
     console.error(result.errors);
 }
+```
+
+### Using the LLM client helpers
+Before an LLM call can round-trip into a DTO, the target class must be decorated with [`@DTO`](../../src/tools/structured_output.ts) so the runtime has a schema to send to the provider. Once the decorator runs, pass the class to [`OllamaClient.toStructuredOutput`](../../src/client/ollama_client.ts) to receive a hydrated instance, or to [`OllamaClient.toStructuredOutputRaw`](../../src/client/ollama_client.ts) when you want the raw JSON string.
+
+```ts
+const ollamaClient = /* create or retrieve your OllamaClient */;
+
+const arithmetic = await ollamaClient.toStructuredOutput(
+    {
+        model: "llama3",
+        messages: [
+            { role: "system", content: "Answer in JSON" },
+            { role: "user", content: "Add 2 and 2, then summarize it" },
+        ],
+    },
+    ArithmeticOperations,
+);
+
+// arithmetic is an instance of ArithmeticOperations when validation succeeds.
+
+const rawJson = await ollamaClient.toStructuredOutputRaw(
+    {
+        model: "llama3",
+        messages: [
+            { role: "user", content: "Add 5 and 7" },
+        ],
+    },
+    ArithmeticOperations,
+);
+// rawJson is the model's JSON string response; hydrate later if needed.
 ```
 
 ## End-to-end flow with an LLM

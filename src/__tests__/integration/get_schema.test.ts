@@ -2,6 +2,8 @@ import { StructuredOutput } from "@/tools/structured_output";
 import {
     MathReasoning,
     ArithmeticOperations,
+    UserProfile,
+    TelemetryReading,
 } from "@/__tests__/models/structured_output";
 
 async function getSchemaArithmeticOperationsTest() {
@@ -14,14 +16,26 @@ const getSchemaMathReasoningTest = async () => {
     console.log("schema: ", JSON.stringify(schema, null, 2))
 }
 
+const getSchemaUserProfileTest = async () => {
+    const schema = (UserProfile as typeof StructuredOutput).getSchema?.();
+    console.log("UserProfile schema: ", JSON.stringify(schema, null, 2));
+}
+
+const getSchemaTelemetryReadingTest = async () => {
+    const schema = (TelemetryReading as typeof StructuredOutput).getSchema?.();
+    console.log("TelemetryReading schema: ", JSON.stringify(schema, null, 2));
+}
+
 
 (async function main() {
     try {
         // sync test
 
         // promise tests in order
-    //    await getSchemaArithmeticOperationsTest();
-       await getSchemaMathReasoningTest();
+        //  await getSchemaArithmeticOperationsTest();
+        //  await getSchemaMathReasoningTest();
+        //  await getSchemaUserProfileTest();
+         await getSchemaTelemetryReadingTest();
 
         console.log("🎉 All integration tests passed");
     } catch (err) {

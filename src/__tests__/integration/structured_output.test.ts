@@ -6,6 +6,9 @@ import {
     ReasoningSummary,
     MathReasoning,
     ArithmeticOperations,
+    UserProfile,
+    Address,
+    TelemetryReading,
 } from '@/__tests__/models/structured_output';
 
 const getSchema = (structure: Array<typeof StructuredOutput>): JSONSchema[] => {
@@ -26,6 +29,14 @@ const structuredOutputGetArithmeticOperationsSchemaTest = () => {
     console.log('ArithmeticOperations schema from decorator:', JSON.stringify(schemas, null, 2));
 
     console.log('Structured output tests for ArithmeticOperations completed.');
+}
+
+const structuredOutputGetUserProfileSchemaTest = () => {
+    console.log('Starting structured output tests for UserProfile...');
+    const schemas = getSchema([UserProfile]);
+    console.log('UserProfile schema from decorator:', JSON.stringify(schemas, null, 2));
+
+    console.log('Structured output tests for UserProfile completed.');
 }
 
 const structuredOutputValidationTest = () => {
@@ -130,18 +141,86 @@ const testReasoningSummaryHydration = () => {
     console.log('ReasoningSummary hydration test passed');
 };
 
+const testUserProfileHydration = () => {
+    console.log('Starting UserProfile hydration test...');
+    const profileRecipe = {
+        id: 'user-001',
+        displayName: 'Ada Lovelace',
+        age: '37',
+        isActive: 'true',
+        primaryAddress: {
+            line1: '123 Analytical Engine Way',
+            city: 'London',
+            country: 'UK',
+        },
+        previousAddresses: [
+            {
+                line1: '42 Binary Road',
+                city: 'Cambridge',
+                country: 'UK',
+                postalCode: 'CB1',
+            },
+        ],
+        emails: ['ada@example.com'],
+    };
+
+    const hydratedProfile = (UserProfile as typeof StructuredOutput).hydrate?.(profileRecipe);
+    console.log('Hydrated UserProfile instance:', hydratedProfile);
+    if (!hydratedProfile) throw new Error('Expected UserProfile hydration to produce an instance');
+    if (!(hydratedProfile instanceof UserProfile)) throw new Error('Hydration result is not a UserProfile instance');
+    if (hydratedProfile.age !== 37) throw new Error('Expected age to coerce into a number');
+    if (hydratedProfile.isActive !== true) throw new Error('Expected isActive to coerce into a boolean');
+    if (!(hydratedProfile.primaryAddress instanceof Address)) throw new Error('Primary address did not hydrate into Address');
+    if (hydratedProfile.previousAddresses.length !== 1) throw new Error('Previous addresses length mismatch');
+    if (!(hydratedProfile.previousAddresses[0] instanceof Address)) throw new Error('Previous address did not hydrate into Address');
+    console.log('UserProfile hydration test passed');
+};
+
+const testTelemetryReadingCoercion = () => {
+    console.log('Starting TelemetryReading hydration test...');
+    const readingRecipe = {
+        deviceId: 'sensor-123',
+        temperatureCelsius: '21.5',
+        humidityPercentage: '55',
+        isOnline: 'false',
+        notes: ['scheduled calibration']
+    };
+
+    const validationPayload = {
+        deviceId: 'sensor-123',
+        temperatureCelsius: 21.5,
+        humidityPercentage: 55,
+        isOnline: true,
+        notes: ['scheduled calibration']
+    };
+    const validation = (TelemetryReading as typeof StructuredOutput).validate?.(validationPayload);
+    if (!validation?.valid) throw new Error('Expected TelemetryReading validation to succeed');
+
+    const hydratedReading = (TelemetryReading as typeof StructuredOutput).hydrate?.(readingRecipe);
+    console.log('Hydrated TelemetryReading instance:', hydratedReading);
+    if (!hydratedReading) throw new Error('Expected TelemetryReading hydration to produce an instance');
+    if (!(hydratedReading instanceof TelemetryReading)) throw new Error('Hydration result is not a TelemetryReading instance');
+    if (hydratedReading.temperatureCelsius !== 21.5) throw new Error('Temperature did not coerce into a number');
+    if (hydratedReading.humidityPercentage !== 55) throw new Error('Humidity did not coerce into a number');
+    if (hydratedReading.isOnline !== false) throw new Error('Boolean coercion failed for isOnline');
+    console.log('TelemetryReading hydration test passed');
+};
+
 (async function main() {
     try {
         // sync test
 
         // promise tests in order
-    // structuredOutputGetMathLogicSchemaTest();
-    // structuredOutputGetArithmeticOperationsSchemaTest();
-    // structuredOutputValidationTest();
-    // testMathReasoningHydration();
-    // testObjectRecipeHydration();
-    // testInvalidHydrations();
-    testReasoningSummaryHydration();
+        // structuredOutputGetMathLogicSchemaTest();
+        // structuredOutputGetArithmeticOperationsSchemaTest();
+        // structuredOutputValidationTest();
+        // testMathReasoningHydration();
+        // testObjectRecipeHydration();
+        // testInvalidHydrations();
+        // structuredOutputGetUserProfileSchemaTest();
+        // testReasoningSummaryHydration();
+        // testUserProfileHydration();
+        testTelemetryReadingCoercion();
 
         console.log("🎉 All integration tests passed");
     } catch (err) {

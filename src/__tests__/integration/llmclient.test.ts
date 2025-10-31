@@ -7,14 +7,17 @@ import {
 import { LLMClient } from '@/client/llmclient';
 import { OllamaClient } from '@/client/ollama_client';
 import { strict as assert } from 'node:assert';
-import { ShowResponse } from 'ollama';
+import { ChatRequest, ShowResponse } from 'ollama';
 import { WeatherTool } from '@/examples/tools/weather';
 import { BraveSearchTool } from '@/examples/tools/brave_search';
 import {
     MathReasoning,
     AdditionOperation,
     ArithmeticOperations,
+    UserProfile,
+    TelemetryReading,
 } from '@/__tests__/models/structured_output';
+import { StructuredOutput } from '@/tools/structured_output';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -185,6 +188,70 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
     console.log('OllamaClient.structuredOutput arithmetic operations test completed.');
 };
 
+const structuredOutputUserProfileTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput user profile test...');
+
+    const input: ChatRequest = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'system',
+                content:
+                    'You are an onboarding assistant. Output a JSON user profile that matches the provided schema exactly.',
+            },
+            {
+                role: 'user',
+                content:
+                    'Create a profile for the user Ada Lovelace who lives in London and prefers email updates. Include one previous address.',
+            },
+        ],
+    };
+
+    const result = await ollamaClient.toStructuredOutput!(input, UserProfile, 3);
+    console.log('✅ OllamaClient structured output user profile:', result);
+
+    console.log('OllamaClient.structuredOutput user profile test completed.');
+};
+
+const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput raw telemetry test...');
+
+    const input: ChatRequest = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'system',
+                content:
+                    'Return only JSON that conforms to the telemetry schema. Use realistic numbers and strings.',
+            },
+            {
+                role: 'user',
+                content:
+                    'Report the latest reading for device sensor-123 located in the lab. Temperature is 21.5°C, humidity 55%, device currently online.',
+            },
+        ],
+    };
+
+    const rawContent = await ollamaClient.toStructuredOutputRaw!(input, TelemetryReading);
+    console.log('Raw telemetry payload:', rawContent);
+
+    if (!rawContent) {
+        throw new Error('Expected raw structured output content for telemetry');
+    }
+
+    const validation = (TelemetryReading as typeof StructuredOutput).validate?.(rawContent);
+    console.log('Telemetry validation result:', validation);
+
+    if (!validation?.valid) {
+        throw new Error('Telemetry payload failed validation');
+    }
+
+    const hydrated = (TelemetryReading as typeof StructuredOutput).hydrate?.(rawContent);
+    console.log('Hydrated telemetry instance:', hydrated);
+
+    console.log('OllamaClient.structuredOutput raw telemetry test completed.');
+};
+
 
 (async function main() {
     try {
@@ -195,7 +262,9 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
         // await chatTest(testLLMClients.getOllamaClient());
         // await toolCallTest(testLLMClients.getOllamaClient());
         // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
-        await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
+        // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
+        // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
+        await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
         // await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

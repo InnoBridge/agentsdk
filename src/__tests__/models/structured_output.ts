@@ -283,6 +283,123 @@ class ArithmeticOperations {
 	}
 }
 
+@DTO({
+	type: 'object',
+	name: 'Address',
+	description: 'Street-level address information.',
+	properties: {
+		line1: 'string',
+		city: 'string',
+		country: 'string',
+		line2: 'string',
+		state: 'string',
+		postalCode: 'string',
+	},
+	required: ['line1', 'city', 'country'],
+})
+class Address {
+	line1: string;
+	line2?: string;
+	city: string;
+	state?: string;
+	postalCode?: string;
+	country: string;
+
+	constructor(
+		line1: string,
+		city: string,
+		country: string,
+		line2?: string,
+		state?: string,
+		postalCode?: string,
+	) {
+		this.line1 = line1;
+		this.city = city;
+		this.country = country;
+		this.line2 = line2;
+		this.state = state;
+		this.postalCode = postalCode;
+	}
+}
+
+@DTO({
+	type: 'object',
+	name: 'UserProfile',
+	description: 'Represents a fully hydrated user profile with nested addresses.',
+	properties: {
+		id: 'string',
+		displayName: 'string',
+		age: 'number',
+		isActive: 'boolean',
+		primaryAddress: Address,
+		previousAddresses: array(Address),
+		emails: array('string'),
+	},
+	required: ['id', 'displayName', 'age', 'isActive', 'primaryAddress'],
+})
+class UserProfile {
+	id: string;
+	displayName: string;
+	age: number;
+	isActive: boolean;
+	primaryAddress: Address;
+	previousAddresses: Address[];
+	emails: string[];
+
+	constructor(
+		id: string,
+		displayName: string,
+		age: number,
+		isActive: boolean,
+		primaryAddress: Address,
+		previousAddresses: Address[] = [],
+		emails: string[] = [],
+	) {
+		this.id = id;
+		this.displayName = displayName;
+		this.age = age;
+		this.isActive = isActive;
+		this.primaryAddress = primaryAddress;
+		this.previousAddresses = previousAddresses;
+		this.emails = emails;
+	}
+}
+
+@DTO({
+	type: 'object',
+	name: 'TelemetryReading',
+	description: 'Captures sensor telemetry with coercible primitives.',
+	properties: {
+		deviceId: 'string',
+		temperatureCelsius: 'number',
+		humidityPercentage: 'number',
+		isOnline: 'boolean',
+		notes: array('string'),
+	},
+	required: ['deviceId', 'temperatureCelsius', 'humidityPercentage', 'isOnline'],
+})
+class TelemetryReading {
+	deviceId: string;
+	temperatureCelsius: number;
+	humidityPercentage: number;
+	isOnline: boolean;
+	notes: string[];
+
+	constructor(
+		deviceId: string,
+		temperatureCelsius: number,
+		humidityPercentage: number,
+		isOnline: boolean,
+		notes: string[] = [],
+	) {
+		this.deviceId = deviceId;
+		this.temperatureCelsius = temperatureCelsius;
+		this.humidityPercentage = humidityPercentage;
+		this.isOnline = isOnline;
+		this.notes = notes;
+	}
+}
+
 export {
     Step,
     Metadata,
@@ -294,4 +411,7 @@ export {
     DivisionOperation,
     ArithmeticOperations,
     ArithmeticOperation,
+	Address,
+	UserProfile,
+	TelemetryReading,
 };
