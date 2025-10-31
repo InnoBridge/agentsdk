@@ -1,5 +1,5 @@
 import Ajv from "ajv";
-import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, array } from "@/models/structured_output";
+import { JsonSchema, SchemaDefinition, Repair, ValidatedResult } from "@/models/structured_output";
 import { copyPrototypeChain } from "@/utils/prototype_helper";
 import { buildJSONFromSchema, hydrateWithConstructor, HydrationRecipe, StoredSchema } from "@/utils/structured_output_helper";
 
