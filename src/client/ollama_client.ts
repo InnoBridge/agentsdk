@@ -1,9 +1,7 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
-import type { LLMClient } from '@/client/llmclient';
+import { StructuredOutputValidationError, type LLMClient } from '@/client/llmclient';
 import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { ZodType, ZodTypeDef } from "zod";
 import { StructuredOutput } from "@/tools/structured_output";
 
 @Singleton
@@ -55,30 +53,58 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         const toolCalls: ToolComponent[] = result.message.tool_calls
             ? result.message.tool_calls.map(toolCall => {
                 const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
-                return toolComponent?.hydration?.(toolCall);
+                return toolComponent?.hydrate?.(toolCall);
             }).filter((tc): tc is ToolComponent => tc !== undefined)
             : [];
         return toolCalls;
     };
 
-    async toStructuredOutput(
+    async toStructuredOutput<T extends typeof StructuredOutput>(
         input: ChatRequest,
-        structuredOutput: typeof StructuredOutput,
-    ): Promise<void> {
-        const schema = structuredOutput.getSchema?.();
+        dto: T,
+        retries: number = 0
+    ): Promise<InstanceType<T> | StructuredOutputValidationError> {
+        const schema = dto.getSchema?.();
         if (!schema) {
             throw new Error('DTO class does not have a schema defined.');
         }
 
-        const request: ChatRequest = {
+        console.log("schema:", schema);
+
+        let request: ChatRequest = {
             ...input,
             format: schema,
             stream: false,
         };
-        const response = await this.chat(request);
-        const content = response.message?.content;
+        console.log("request:", request);
+        let response = await this.chat(request);
+        let hydrationRecipe = response.message?.content;
 
-        console.log('OllamaClient.toStructuredOutput response content:', content);
+        let validationResult = dto.validate?.(hydrationRecipe);
+
+        if (validationResult?.valid) {
+            console.log("valid");
+            return dto.hydrate?.(hydrationRecipe) as InstanceType<T>;
+        }
+
+        for (let attempt = 0; attempt < retries; attempt++) {
+            console.log(`Validation failed. Attempting to repair structured output (Attempt ${attempt + 1}/${retries})...`);
+            const messages = request.messages || [];
+            messages.push({
+                role: 'system',
+                content: `Structured output validation failed. on <json>${hydrationRecipe}</json>. Errors: ${JSON.stringify(validationResult?.errors)}. Please correct the output to conform to the specified schema: ${JSON.stringify(schema)}.`,
+            });
+
+            response = await this.chat({...request, messages, stream: false });
+            hydrationRecipe = response.message?.content;
+            validationResult = dto.validate?.(hydrationRecipe);
+
+            if (validationResult?.valid) {
+                return dto.hydrate?.(hydrationRecipe) as InstanceType<T>;
+            }
+        };
+
+        throw new StructuredOutputValidationError('Structured output validation failed with error ' + JSON.stringify(validationResult?.errors), validationResult);
     }
 
     async stop(): Promise<void> {

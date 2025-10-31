@@ -1,57 +1,31 @@
-import { J } from "vitest/dist/chunks/reporters.d.C-cu31ET.js";
+import Ajv, { ErrorObject, Schema } from "ajv";
+import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, array } from "@/models/structured_output";
+import { copyPrototypeChain } from "@/utils/prototype_helper";
+import { buildJSONFromSchema } from "@/utils/schema_helper";
 
-type JsonSchema = Record<string, unknown>;
+const ajv = new Ajv({ allErrors: true, strict: false });
 
-const copyPrototypeChain = (
-    sourceProto: object,
-    targetProto: object,
-    stopProto: object
-    ) => {
-    const visited = new Set<string>();
-    let proto: any = sourceProto;
-
-    while (proto && proto !== stopProto && proto !== Object.prototype) {
-        for (const name of Object.getOwnPropertyNames(proto)) {
-        if (name === 'constructor') continue;
-        if (visited.has(name)) continue;
-
-        const descriptor = Object.getOwnPropertyDescriptor(proto, name);
-        if (!descriptor) continue;
-
-        if (!Object.prototype.hasOwnProperty.call(targetProto, name)) {
-            Object.defineProperty(targetProto, name, descriptor);
-        }
-
-        visited.add(name);
-        }
-
-        proto = Object.getPrototypeOf(proto);
-    }
-};
-
-interface SchemaDefinition {
-    type?: string;
-    name?: string;
-    description?: string;
-    properties?: Record<string, JsonSchema>;
-    required?: string[];
-    additionalProperties?: boolean;
-}
-
-// new
 const structureRegistry = new Map<string, any>();
+
+const dtoRegistry = new Map<string, typeof StructuredOutput>();
+const registerDto = (dto: typeof StructuredOutput) => {
+    if (dtoRegistry.get(dto.name)) {
+        throw new Error(`DTO with name ${dto.name} is already registered.`);
+    }
+    dtoRegistry.set(dto.name, dto);
+};
+const getRegisteredDto = (name: string): typeof StructuredOutput | undefined => {
+    return dtoRegistry.get(name);
+};
 
 function DTO(schemaDefinition: SchemaDefinition) {
     schemaDefinition.type = schemaDefinition.type || 'object';
     const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & StructuredOutput) & { getSchema?: () => SchemaDefinition | undefined } => {
-    
-        inferSchemaFromConstructor(Target, schemaDefinition);
 
         // Create a new class that extends StructuredOutput
         const Decorated = class extends StructuredOutput {
             constructor(...args: any[]) {
                 super(...args);
-
                 const instance = Reflect.construct(Target, args, new.target);
                 Object.assign(this, instance);
             }
@@ -66,27 +40,23 @@ function DTO(schemaDefinition: SchemaDefinition) {
             
         copyPrototypeChain(Target.prototype, Decorated.prototype, StructuredOutput.prototype);
 
+        const resolveStructuredSchema = (ctor: Function): JsonSchema | undefined => {
+            if (typeof ctor === "function" && ctor.prototype instanceof StructuredOutput) {
+                return (ctor as typeof StructuredOutput).getSchema?.() ?? undefined;
+            }
+            return undefined;
+        };
+
+        const jsonSchema = buildJSONFromSchema(schemaDefinition, resolveStructuredSchema);
+
         // Attach the canonical schema definition to the decorated class
         // StructuredOutput.getSchema() (or other helpers) can read it.
-        try {
-            if (typeof (Reflect as any).defineMetadata === "object") {
-                (Reflect as any).defineMetadata("structured:schema", schemaDefinition, Decorated);
-            } else {
-                Object.defineProperty(Decorated, schemaMetadata, {
-                    value: schemaDefinition,
-                    enumerable: false,
-                    writable: false,
-                    configurable: true
-                });
-            }
-        } catch (e) {
-            Object.defineProperty(Decorated, schemaMetadata, {
-                value: schemaDefinition,
-                enumerable: false,
-                writable: false,
-                configurable: true
-            });
-        }
+        Object.defineProperty(Decorated, schemaMetadata, {
+            value: jsonSchema,
+            enumerable: false,
+            writable: false,
+            configurable: true
+        });
 
         // Copy static properties from Target
         Object.getOwnPropertyNames(Target).forEach((name) => {
@@ -97,11 +67,11 @@ function DTO(schemaDefinition: SchemaDefinition) {
             }
         });
 
+        registerDto(Decorated);
         structureRegistry.set(Decorated.name, Decorated);
-
         return Decorated as any;
     };
-        
+          
     return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
 }
 
@@ -110,36 +80,51 @@ class StructuredOutput {
         // Initialization logic if needed
     }
 
-    static getSchema?: () => SchemaDefinition | undefined;
+    static getSchema?: () => JsonSchema | undefined;
 
-    // hydrate(data: any) {
-        // Implementation for hydrating data into class instance
-    // }
+    static validate?: (originalHydrationRecipe: unknown, previousRepairs?: Repair[]) => ValidatedResult;
+
+    static hydrate?: (hydrationRecipe: unknown) => StructuredOutput | undefined;
 }
 
 // Attach the runtime implementation for StructuredOutput.getSchema()
 StructuredOutput.getSchema = function() {
-    if (typeof (Reflect as any).getMetadata === "function") {
-        return (Reflect as any).getMetadata("structured:schema", this);
+    return (this as any)[schemaMetadata] as JsonSchema | undefined;
+};
+
+StructuredOutput.validate = function(
+    originalHydrationRecipe: unknown,
+    previousRepairs?: Repair[]
+): ValidatedResult {
+    const schema = this.getSchema?.();
+    if (!schema) {
+        throw new Error(`No schema defined for ${this.name}. Cannot validate.`);
     }
-    return (this as any)[schemaMetadata] as SchemaDefinition | undefined;  
+    const repairs = previousRepairs || [];
+
+    let hydrationRecipe: unknown = originalHydrationRecipe;
+    if (typeof originalHydrationRecipe === 'string') {
+        try {
+            hydrationRecipe = JSON.parse(originalHydrationRecipe);
+            repairs.push({attempt: 'Parsed JSON string', originalCandidate: originalHydrationRecipe, candidate: hydrationRecipe});
+        } catch (e) {
+            repairs.push({attempt: 'Failed to parse JSON string', originalCandidate: originalHydrationRecipe, candidate: hydrationRecipe, error: String(e)});
+        }
+    }
+
+    // compile validator (cached by Ajv internally)
+    const validator = ajv.compile(schema);
+    const valid = validator(hydrationRecipe);
+
+    if (valid) {
+        return { valid: true, candidate: hydrationRecipe, originalCandidate: originalHydrationRecipe, repairs };
+    }
+
+    // Here you would implement the actual validation logic
+    return { valid: false, errors: validator.errors, candidate: hydrationRecipe, originalCandidate: originalHydrationRecipe, repairs };
 };
 
 const schemaMetadata = Symbol('structured:schema');
-
-const primitiveTypeMap = new Map<any, JsonSchema>([
-    [String, { type: 'string' }],
-    [Number, { type: 'number' }],
-    [Boolean, { type: 'boolean' }],
-    [Date, { type: 'string', format: 'date-time' }],
-]);
-
-const singularize = (name: string): string => {
-    if (name.endsWith('ies')) return name.slice(0, -3) + 'y';
-    if (name.endsWith('ses')) return name.slice(0, -2);
-    if (name.endsWith('s')) return name.slice(0, -1);
-    return name;
-};
 
 const capitalize = (value: string): string => value.charAt(0).toUpperCase() + value.slice(1);
 
@@ -148,65 +133,29 @@ const cloneSchema = (schema: SchemaDefinition | JsonSchema | undefined): JsonSch
     return JSON.parse(JSON.stringify(schema));
 };
 
-const getConstructorParamTypes = (Target: any): any[] => {
-    if (typeof (Reflect as any).getMetadata === 'function') {
-        return (Reflect as any).getMetadata('design:paramtypes', Target) || [];
-    }
-    return [];
-};
+// const resolveOptionalProperties = (Target: any): Set<string> => {
+//     if (optionalPropertiesCache.has(Target)) {
+//         return optionalPropertiesCache.get(Target)!;
+//     }
 
-const mapAssignments = (constructorBody: string): Array<{ property: string; parameter: string }> => {
-    const assignments: Array<{ property: string; parameter: string }> = [];
-    const assignmentRegex = /this\.(\w+)\s*=\s*(\w+)/g;
-    let match: RegExpExecArray | null;
-    while ((match = assignmentRegex.exec(constructorBody)) !== null) {
-        assignments.push({ property: match[1], parameter: match[2] });
-    }
-    return assignments;
-};
+//     const optionalProperties = new Set<string>();
+//     const stack = new Error().stack;
+//     const sourcePath = extractSourcePathFromStack(stack);
+//     if (sourcePath) {
+//         try {
+//             const source = readFileSync(sourcePath, "utf8");
+//             const parsed = parseOptionalPropertiesFromSource(source, Target.name);
+//             parsed.forEach((property) => optionalProperties.add(property));
+//         } catch {
+//             // ignore filesystem or parsing errors; fall back to empty optional set
+//         }
+//     }
 
-const inferSchemaFromConstructor = (Target: any, schemaDefinition: SchemaDefinition) => {
-    if (schemaDefinition.properties) return;
+//     optionalPropertiesCache.set(Target, optionalProperties);
+//     return optionalProperties;
+// };
 
-    const ctorSource = Target.prototype?.constructor?.toString?.();
-    if (!ctorSource) return;
 
-    const ctorMatch = ctorSource.match(/constructor\s*\(([^)]*)\)\s*{([\s\S]*)}/);
-    if (!ctorMatch) return;
-
-    const params = ctorMatch[1]
-        .split(',')
-        .map((p: string) => p.trim())
-        .filter((value: string) => Boolean(value));
-    if (!params.length) return;
-
-    const assignments = mapAssignments(ctorMatch[2]);
-    if (!assignments.length) return;
-
-    const paramTypes = getConstructorParamTypes(Target);
-
-    const properties: Record<string, JsonSchema> = {};
-    const required = new Set<string>();
-
-    assignments.forEach(({ property, parameter }) => {
-        const index = params.indexOf(parameter);
-        if (index === -1) return;
-        const paramType = paramTypes[index];
-        const propertySchema = buildSchemaForParam(property, parameter, paramType);
-        if (propertySchema) {
-            properties[property] = propertySchema;
-            required.add(property);
-        }
-    });
-
-    if (Object.keys(properties).length) {
-        schemaDefinition.properties = properties;
-        schemaDefinition.required = Array.from(required);
-        if (schemaDefinition.type === 'object' && schemaDefinition.additionalProperties === undefined) {
-            schemaDefinition.additionalProperties = false;
-        }
-    }
-};
 
 const resolveRegisteredSchema = (name: string): JsonSchema | undefined => {
     const cls = structureRegistry.get(name);
@@ -215,40 +164,268 @@ const resolveRegisteredSchema = (name: string): JsonSchema | undefined => {
 
 const inferredStringSchema: JsonSchema = { type: 'string' };
 
-const buildSchemaForParam = (property: string, parameter: string, paramType: any): JsonSchema | undefined => {
-    if (primitiveTypeMap.has(paramType)) {
-        return primitiveTypeMap.get(paramType);
-    }
 
-    const singularParam = capitalize(singularize(parameter));
-    const singularProp = capitalize(singularize(property));
-
-    if (paramType === Array || (!paramType && /s$/.test(property))) {
-        const registryEntrySchema = resolveRegisteredSchema(singularParam) ?? resolveRegisteredSchema(singularProp);
-        return {
-            type: 'array',
-            items: registryEntrySchema ?? {},
-        };
-    }
-
-    if (typeof paramType === 'function') {
-        const nestedSchema = cloneSchema(paramType.getSchema?.()) ?? resolveRegisteredSchema(paramType.name);
-        if (nestedSchema) {
-            return nestedSchema;
+StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput | undefined {
+    let recipe = hydrationRecipe;
+    console.log("dtoRegistry: ", dtoRegistry);
+    if (typeof recipe === 'string') {
+        try {
+            recipe = JSON.parse(recipe);
+        } catch (_err) {
+            return undefined;
         }
+    } else if (recipe === null || typeof recipe !== 'object') {
+        return undefined;
     }
 
-    const registryFallback = resolveRegisteredSchema(singularParam) ?? resolveRegisteredSchema(singularProp);
-    if (registryFallback) {
-        return registryFallback;
-    }
+    console.log("Hydrating recipe: ", recipe);
+    const schema = (this as any)[schemaMetadata];
+    console.log("Schema properties", schema?.properties);
+    return hydrateWithConstructor(this, recipe as JsonSchema);    
+};
 
-    // Fallback when type cannot be determined — assume string to keep schema usable.
-    return inferredStringSchema;
+const hydrateWithConstructor = (
+    ctor: typeof StructuredOutput,
+    recipe: JsonSchema,
+): StructuredOutput | undefined => {
+    const schema = (ctor as any)[schemaMetadata];
+    if (!schema) return undefined;
+
+    const propertyArgs = mapSchemaPropertyToConstructorArgument(
+        schema.properties,
+        recipe,
+        schema.required,
+    );
+
+    const ctorMeta: Array<{ name: string; optional: boolean }> =
+        (schema as any).constructorArgs ??
+        Object.keys(schema.properties).map((name: string) => ({
+            name,
+            optional: !schema.required.includes(name),
+        }));
+
+    const args = ctorMeta.map(({ name }) => propertyArgs.get(name));
+
+    try {
+        return Reflect.construct(ctor, args);
+    } catch (error) {
+        console.error(`Failed to construct ${ctor.name}`, error, args);
+        return undefined;
+    }
+};
+
+type ConstructorArgument = string | number | boolean | StructuredOutput | StructuredOutput[] | undefined;
+
+const mapSchemaPropertyToConstructorArgument = (properties: Record<string, any>, recipe: JsonSchema, required: string[]): Map<string, ConstructorArgument> => {
+    const propertyToConstructorArgumentMap = new Map<string, ConstructorArgument>();
+    console.log("recipe", recipe);
+    for (const [propertyName, propertySchema] of Object.entries(properties)) {
+        console.log("Mapping property:", propertyName, "with schema:", propertySchema);
+        const propertyValue = buildPropertyArgument(
+            propertyName, 
+            propertySchema, 
+            recipe, 
+            required.includes(propertyName)
+        );
+        propertyToConstructorArgumentMap.set(propertyName, propertyValue);
+    };
+
+    return propertyToConstructorArgumentMap;
+};
+
+const buildPropertyArgument = (
+    propertyName: string, 
+    propertySchema: any, 
+    recipe: JsonSchema, 
+    required: boolean) => {
+        console.log("Building property argument for:", propertyName, "with schema:", propertySchema);
+    switch (propertySchema.type) {        
+        case "string":
+            const stringValue = recipe[propertyName];
+            console.log("Building string argument for property:", propertyName, "with value:", stringValue);
+            if (typeof stringValue !== 'string' && required) {
+                throw new Error(`Property ${propertyName} is required to be a string, but got: ${stringValue}`);
+            } else if (typeof stringValue === 'string') {
+                return stringValue;
+            } else {
+                return undefined;
+            }
+        case "number":
+            const numberValue = recipe[propertyName];
+            console.log("Building number argument for property:", propertyName, "with value:", numberValue);
+            if ((numberValue === null || numberValue === undefined) && required) {
+                throw new Error(`Property ${propertyName} is required to be a number, but got: ${numberValue}`);
+            }
+            if (typeof numberValue === 'number') {
+                return numberValue;
+            }
+            if (typeof numberValue === 'string') {
+                const trimmed = numberValue.trim();
+                if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
+                    const coerced = Number(trimmed);
+                    console.log(`Coerced numeric string for ${propertyName}:`, numberValue, '->', coerced);
+                    return coerced;
+                }
+            }
+            return undefined;
+        case "boolean":
+            const booleanValue = recipe[propertyName];
+            console.log("Building boolean argument for property:", propertyName, "with value:", booleanValue);
+            if ((booleanValue === null || booleanValue === undefined) && required) {
+                throw new Error(`Property ${propertyName} is required to be a boolean, but got: ${booleanValue}`);
+            }
+            if (typeof booleanValue === 'boolean') {
+                return booleanValue;
+            }
+            if (typeof booleanValue === 'string') {
+                const trimmed = booleanValue.trim().toLowerCase();
+                if (trimmed === 'true') return true;
+                if (trimmed === 'false') return false;
+                // also accept numeric-like booleans
+                if (trimmed === '1') return true;
+                if (trimmed === '0') return false;
+            }
+            return undefined;
+        case "array": {
+            const arrayValue = recipe[propertyName];
+            if (!Array.isArray(arrayValue)) {
+                if (required) {
+                    throw new Error(`Expected array for property ${propertyName}`);
+                }
+                return undefined;
+            }
+
+            const itemType = propertySchema.items?.type;
+            console.log("Building array argument for property:", propertyName, "with item type:", itemType, "and value:", arrayValue, "propertySchema:", propertySchema);
+            switch (itemType) {
+                case "object": {
+                    const dto = getRegisteredDto(propertySchema.items.name);
+                    if (!dto) {
+                        throw new Error(`Unknown DTO ${propertySchema.items.name} in array property ${propertyName}`);
+                    }
+
+                    return arrayValue.map((item) => {
+                        if (typeof dto.hydrate === "function") {
+                            return dto.hydrate(item) ?? item;
+                        }
+                        const instance = Object.create(dto.prototype);
+                        return Object.assign(instance, item);
+                    });
+                }
+                case "string":
+                    return arrayValue as ConstructorArgument[];
+                case "number":
+                    return arrayValue.map((item) =>
+                        typeof item === "number" ? item : Number(item),
+                    );
+                case "boolean":
+                    return arrayValue.map((item) => {
+                        if (typeof item === "boolean") return item;
+                        const normalized = String(item).trim().toLowerCase();
+                        if (normalized === "true" || normalized === "1") return true;
+                        if (normalized === "false" || normalized === "0") return false;
+                        return Boolean(item);
+                    });
+                default:
+                    throw new Error(`Unsupported array item type: ${itemType}`);
+            }
+        }
+        case "object":
+            const objectValue = recipe[propertyName];
+            console.log("Building object argument for property:", propertyName, "with value:", objectValue);
+            const dto = getRegisteredDto(propertySchema.name);
+            console.log("Resolved DTO for object property:", dto);
+            if (dto && typeof dto.hydrate === 'function') {
+                const hydratedObject = dto.hydrate(objectValue);
+                console.log("Hydrated object for property:", propertyName, "->", hydratedObject);
+                return hydratedObject;
+            }
+            return undefined;
+        default:
+            console.log(`Unsupported schema type for property ${propertyName}:`, propertySchema.type);
+    }
+};
+
+
+// StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput | undefined {
+//     let recipe = hydrationRecipe;
+
+//     if (typeof recipe === 'string') {
+//         try {
+//             recipe = JSON.parse(recipe);
+//         } catch (_err) {
+//             return undefined;
+//         }
+//     }
+
+//     if (recipe === null || typeof recipe !== 'object') {
+//         return undefined;
+//     }
+
+//     const schema = this.getSchema?.();
+//     const constructor = this as unknown as { new (...args: any[]): StructuredOutput };
+//     const result = hydrateWithConstructor(constructor, recipe, schema);
+
+//     return result as StructuredOutput | undefined;
+// };
+
+// const hydrateWithConstructor = (
+//     constructor: { new (...args: any[]): StructuredOutput } | StructuredOutputConstructor,
+//     hydrationRecipe: unknown,
+//     schema?: SchemaDefinition | JsonSchema
+// ): StructuredOutput | undefined => {
+
+//     const existingHydrator = (constructor as StructuredOutputConstructor).hydrate;
+//     if (typeof existingHydrator === 'function' && existingHydrator !== StructuredOutput.hydrate) {
+//         return existingHydrator.call(constructor, hydrationRecipe) as StructuredOutput;
+//     }
+//     const target = Object.create((constructor as any).prototype) as StructuredOutput;
+//     const schemaProperties = (schema as SchemaDefinition | undefined)?.properties ?? {};
+//     Object.entries(hydrationRecipe as Record<string, unknown>).forEach(([hydrationKey, hydrationValue]) => {
+//         const schemaProperty = schemaProperties[hydrationKey];
+//         (target as Record<string, unknown>)[hydrationKey] = hydrateValue(hydrationValue, schemaProperty);
+//     });
+
+//     return target;
+// };
+
+// const hydrateValue = (hydrationValue: unknown, schema?: SchemaDefinition): unknown => {
+//     if (schema && typeof schema === 'object') {
+//         const schemaType = (schema as any).type;
+
+//         if (schemaType === 'array' && Array.isArray(hydrationValue)) {
+//             const itemSchema = (schema as any).items as SchemaDefinition | undefined;
+//             const itemCtor = resolveConstructorFromSchema(itemSchema);
+//             return hydrationValue.map((item) =>
+//                 itemCtor ? hydrateWithConstructor(itemCtor, item, itemSchema) ?? item : hydrateValue(item, itemSchema)
+//             );
+//         }
+
+//         const ctor = resolveConstructorFromSchema(schema as any);
+//         if (ctor && hydrationValue && typeof hydrationValue === 'object') {
+//             return hydrateWithConstructor(ctor, hydrationValue, schema as SchemaDefinition) ?? hydrationValue;
+//         }
+//     }
+
+//     return hydrationValue;
+// };
+
+type StructuredOutputConstructor = {
+    new (...args: any[]): StructuredOutput;
+    hydrate?: (validatedResponse: unknown) => StructuredOutput | undefined;
+};
+
+const resolveConstructorFromSchema = (schema?: SchemaDefinition): StructuredOutputConstructor | undefined => {
+    if (!schema || typeof schema !== 'object') return undefined;
+    const refName = (schema as any).name || (schema as any).name;
+    if (refName && structureRegistry.has(refName)) {
+        return structureRegistry.get(refName);
+    }
+    return undefined;
 };
 
 export {
     StructuredOutput,
     DTO,
-    SchemaDefinition
+    getRegisteredDto
 };

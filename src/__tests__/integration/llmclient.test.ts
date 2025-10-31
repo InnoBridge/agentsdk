@@ -10,7 +10,8 @@ import { strict as assert } from 'node:assert';
 import { ShowResponse } from 'ollama';
 import { WeatherTool } from '@/examples/tools/weather';
 import { BraveSearchTool } from '@/examples/tools/brave_search';
-import { DTO } from '@/tools/structured_output';
+import { DTO, StructuredOutput } from '@/tools/structured_output';
+import { array } from '@/models/structured_output';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -128,7 +129,12 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
 @DTO({
     type: 'object',
     name: 'Step',
-    description: 'Represents a single step in the reasoning process.'
+    description: 'Represents a single step in the reasoning process.',
+    properties: {
+        explanation: 'string',
+        output: 'string',
+    },
+    required: ['explanation', 'output']
 })
 class Step {
     explanation: string;
@@ -143,7 +149,12 @@ class Step {
 @DTO({
     type: 'object',
     name: 'MathReasoning',
-    description: 'Represents the step-by-step reasoning process for solving a math problem.'
+    description: 'Represents the step-by-step reasoning process for solving a math problem.',
+    properties: {
+        steps: array(Step),
+        final_answer: { type: 'string' },
+    },
+    required: ['steps', 'final_answer']
 })
 class MathReasoning {
     steps: Step[];
@@ -155,25 +166,118 @@ class MathReasoning {
     }
 }
 
-const dtoStructuredOutputTest = async (ollamaClient: LLMClient) => {
+@DTO({
+    type: 'object',
+    name: 'AdditionOperation',
+    description: 'Represents an addition operation.',
+    properties: {
+        operand1: 'number',
+        operand2: 'number',
+    },
+    required: ['operand1', 'operand2']
+})
+class AdditionOperation {
+    private operand1: number;
+    private operand2: number;
+    
+    constructor(operand1: number, operand2: number) {
+        console.log("Creating AdditionOperation with", operand1, operand2);
+        this.operand1 = operand1;
+        this.operand2 = operand2;
+    }
+
+    operate(): number {
+        console.log("typeof operand1:", typeof this.operand1);
+        console.log("typeof operand2:", typeof this.operand2);
+        return this.operand1 + this.operand2;
+    }
+}
+
+@DTO({
+    type: 'object',
+    name: 'ArithmeticOperations',
+    description: 'Represents a basic arithmetic operation.',
+    properties: {
+        additionOperations: { type: 'array', items: { $ref: '#/components/schemas/AdditionOperation' } },
+    },
+    required: ['additionOperations']
+})
+class ArithmeticOperations {
+    additionOperations: AdditionOperation[];
+
+    constructor(additionOperations: AdditionOperation[]) {
+        this.additionOperations = additionOperations;
+    }
+
+    getAdditionOperations(): AdditionOperation[] {
+        return this.additionOperations;
+    }
+
+    compute(): number {
+        let result = 0;
+        for (const operation of this.additionOperations) {
+            result += operation.operate();
+        }
+        return result;
+    }
+}
+
+const dtoStructuredOutputMathReasoningTest = async (ollamaClient: LLMClient) => {
     console.log('Starting OllamaClient.DTO structuredOutput test...');
 
     const input: any = {    
         model: 'qwen3-coder:30b',
         messages: [
                 {
-      role: "system",
-      content:
-        "You are a helpful math tutor. Guide the user through the solution step by step.",
-    },
-    { role: "user", content: "how can I solve 8x + 7 = -23" },
+                    role: "system",
+                    content: "You are a helpful math tutor. Guide the user through the solution step by step.",
+            },
+            { role: "user", content: "how can I solve 8x + 7 = -23" },
         ]
     };
-    const result = await ollamaClient.toStructuredOutput!(input, MathReasoning);
+    const result = await ollamaClient.toStructuredOutput!(input, MathReasoning, 5);
     console.log('✅ OllamaClient DTO structured output response object:', result);
 
     console.log('OllamaClient.DTO structuredOutput test completed.');
 };
+
+const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient) => {
+    console.log('Starting OllamaClient.structuredOutput arithmetic operations test...');
+
+    const input: any = {
+        model: 'qwen3-coder:30b',
+        messages: [
+            {
+                role: 'user',
+                content: 'Perform the following additions and provide the results in a JSON array: 15 + 27, 34 + 56, 78 + 89.'
+            }
+        ],
+    };
+
+    console.log('MathReasoning :', JSON.stringify((MathReasoning as any).getSchema?.(), null, 2));
+    console.log('ArithmeticOperations schema definition:', JSON.stringify((ArithmeticOperations as any).getSchema?.(), null, 2));
+    console.log('ArithmeticOperation schema definition:', JSON.stringify((AdditionOperation as any).getSchema?.(), null, 2));
+
+    const result = await ollamaClient.toStructuredOutput!(input, ArithmeticOperations, 5);
+    console.log('✅ OllamaClient structured output arithmetic operations response object:', result);
+    // console.log('Arithmetic Operations:', (result as ArithmeticOperations).getArithmeticOperations());
+
+    const arithmeticOps: AdditionOperation[] = (result as ArithmeticOperations).getAdditionOperations();
+    arithmeticOps.forEach((op, index) => {
+        console.log(`Operation ${index + 1}: ${op}`);
+        console.log('operate result:', op.operate());
+    });
+    // arithmeticOps.forEach((op, index) => {
+        // console.log(`Operation ${index + 1}: ${op.operand1} + ${op.operand2} = ${op.operate()}`);
+    // });
+    // if (result instanceof ArithmeticOperations) {
+        // const computedResult = result.compute();
+        // console.log('Computed sum of all addition operations:', computedResult);
+    // }
+    
+    console.log('OllamaClient.structuredOutput arithmetic operations test completed.');
+};
+
 
 (async function main() {
     try {
@@ -184,7 +288,8 @@ const dtoStructuredOutputTest = async (ollamaClient: LLMClient) => {
         // await chatTest(testLLMClients.getOllamaClient());
         // await toolCallTest(testLLMClients.getOllamaClient());
         // await structuredOutputTest(testLLMClients.getOllamaClient());
-        await dtoStructuredOutputTest(testLLMClients.getOllamaClient());
+        await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
+        // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
