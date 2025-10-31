@@ -1,16 +1,28 @@
 import type { ErrorObject } from "ajv";
+import type { StructuredOutput } from "@/tools/structured_output";
 
 type JsonSchema = Record<string, unknown>;
 
-// Local SchemaValue type to avoid circular runtime imports.
-// This mirrors the shape used by the tools module but keeps this file independent.
-type SchemaValue = "string" | "number" | "boolean" | Record<string, unknown> | Array<SchemaValue> | any;
+type StructuredOutputCtor = abstract new (...args: any[]) => StructuredOutput;
 
-const array = (value: SchemaValue): SchemaValue => {
+type ArraySchemaValue = {
+    type: "array";
+    items: SchemaValue;
+};
+
+type SchemaValue =
+    | "string"
+    | "number"
+    | "boolean"
+    | StructuredOutputCtor
+    | ArraySchemaValue
+    | JsonSchema;
+
+const array = (value: SchemaValue): ArraySchemaValue => {
     return {
-    type: 'array',
-    items: value,
-   };
+        type: 'array',
+        items: value,
+    };
 };
 
 type SchemaDefinition = {

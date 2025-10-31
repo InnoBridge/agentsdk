@@ -1,20 +1,27 @@
 import Ajv from "ajv";
 import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, array } from "@/models/structured_output";
 import { copyPrototypeChain } from "@/utils/prototype_helper";
-import { buildJSONFromSchema } from "@/utils/schema_helper";
+import { buildJSONFromSchema, hydrateWithConstructor, HydrationRecipe, StoredSchema } from "@/utils/structured_output_helper";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
 const schemaMetadata = Symbol('structured:schema');
 
-const structureRegistry = new Map<string, any>();
-
 const dtoRegistry = new Map<string, typeof StructuredOutput>();
-const registerDto = (dto: typeof StructuredOutput) => {
-    if (dtoRegistry.get(dto.name)) {
-        throw new Error(`DTO with name ${dto.name} is already registered.`);
+const registerDto = (dto: typeof StructuredOutput, schemaName: string) => {
+    const registerKey = (key: string) => {
+        if (!key) return;
+        const existing = dtoRegistry.get(key);
+        if (existing && existing !== dto) {
+            throw new Error(`DTO with name ${key} is already registered.`);
+        }
+        dtoRegistry.set(key, dto);
+    };
+
+    registerKey(dto.name);
+    if (schemaName && schemaName !== dto.name) {
+        registerKey(schemaName);
     }
-    dtoRegistry.set(dto.name, dto);
 };
 const getRegisteredDto = (name: string): typeof StructuredOutput | undefined => {
     return dtoRegistry.get(name);
@@ -69,8 +76,7 @@ function DTO(schemaDefinition: SchemaDefinition) {
             }
         });
 
-        registerDto(Decorated);
-        structureRegistry.set(Decorated.name, Decorated);
+        registerDto(Decorated, schemaDefinition.name);
         return Decorated as any;
     };
           
@@ -138,166 +144,10 @@ StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput
         return undefined;
     }
 
-    const schema = (this as any)[schemaMetadata];
-    return hydrateWithConstructor(this, recipe as JsonSchema);    
-};
-
-const hydrateWithConstructor = (
-    ctor: typeof StructuredOutput,
-    recipe: JsonSchema,
-): StructuredOutput | undefined => {
-    const schema = (ctor as any)[schemaMetadata];
+    const schema = (this as any)[schemaMetadata] as StoredSchema | undefined;
     if (!schema) return undefined;
 
-    const propertyArgs = mapSchemaPropertyToConstructorArgument(
-        schema.properties,
-        recipe,
-        schema.required,
-    );
-
-    const ctorMeta: Array<{ name: string; optional: boolean }> =
-        (schema as any).constructorArgs ??
-        Object.keys(schema.properties).map((name: string) => ({
-            name,
-            optional: !schema.required.includes(name),
-        }));
-
-    const args = ctorMeta.map(({ name }) => propertyArgs.get(name));
-
-    try {
-        return Reflect.construct(ctor, args);
-    } catch (error) {
-        console.error(`Failed to construct ${ctor.name}`, error, args);
-        return undefined;
-    }
-};
-
-type ConstructorArgument = string | number | boolean | StructuredOutput | StructuredOutput[] | undefined;
-
-const mapSchemaPropertyToConstructorArgument = (properties: Record<string, any>, recipe: JsonSchema, required: string[]): Map<string, ConstructorArgument> => {
-    const propertyToConstructorArgumentMap = new Map<string, ConstructorArgument>();
-    for (const [propertyName, propertySchema] of Object.entries(properties)) {
-        
-        const propertyValue = buildPropertyArgument(
-            propertyName, 
-            propertySchema, 
-            recipe, 
-            required.includes(propertyName)
-        );
-        propertyToConstructorArgumentMap.set(propertyName, propertyValue);
-    };
-
-    return propertyToConstructorArgumentMap;
-};
-
-const buildPropertyArgument = (
-    propertyName: string, 
-    propertySchema: any, 
-    recipe: JsonSchema, 
-    required: boolean) => {
-        
-    switch (propertySchema.type) {        
-        case "string":
-            const stringValue = recipe[propertyName];
-            
-            if (typeof stringValue !== 'string' && required) {
-                throw new Error(`Property ${propertyName} is required to be a string, but got: ${stringValue}`);
-            } else if (typeof stringValue === 'string') {
-                return stringValue;
-            } else {
-                return undefined;
-            }
-        case "number":
-            const numberValue = recipe[propertyName];
-            
-            if ((numberValue === null || numberValue === undefined) && required) {
-                throw new Error(`Property ${propertyName} is required to be a number, but got: ${numberValue}`);
-            }
-            if (typeof numberValue === 'number') {
-                return numberValue;
-            }
-            if (typeof numberValue === 'string') {
-                const trimmed = numberValue.trim();
-                if (trimmed !== '' && !Number.isNaN(Number(trimmed))) {
-                    const coerced = Number(trimmed);
-                    
-                    return coerced;
-                }
-            }
-            return undefined;
-        case "boolean":
-            const booleanValue = recipe[propertyName];
-            
-            if ((booleanValue === null || booleanValue === undefined) && required) {
-                throw new Error(`Property ${propertyName} is required to be a boolean, but got: ${booleanValue}`);
-            }
-            if (typeof booleanValue === 'boolean') {
-                return booleanValue;
-            }
-            if (typeof booleanValue === 'string') {
-                const trimmed = booleanValue.trim().toLowerCase();
-                if (trimmed === 'true') return true;
-                if (trimmed === 'false') return false;
-                // also accept numeric-like booleans
-                if (trimmed === '1') return true;
-                if (trimmed === '0') return false;
-            }
-            return undefined;
-        case "array": {
-            const arrayValue = recipe[propertyName];
-            if (!Array.isArray(arrayValue)) {
-                if (required) {
-                    throw new Error(`Expected array for property ${propertyName}`);
-                }
-                return undefined;
-            }
-
-            const itemType = propertySchema.items?.type;
-            
-            switch (itemType) {
-                case "object": {
-                    const dto = getRegisteredDto(propertySchema.items.name);
-                    if (!dto) {
-                        throw new Error(`Unknown DTO ${propertySchema.items.name} in array property ${propertyName}`);
-                    }
-
-                    return arrayValue.map((item) => {
-                        if (typeof dto.hydrate === "function") {
-                            return dto.hydrate(item) ?? item;
-                        }
-                        const instance = Object.create(dto.prototype);
-                        return Object.assign(instance, item);
-                    });
-                }
-                case "string":
-                    return arrayValue as ConstructorArgument[];
-                case "number":
-                    return arrayValue.map((item) =>
-                        typeof item === "number" ? item : Number(item),
-                    );
-                case "boolean":
-                    return arrayValue.map((item) => {
-                        if (typeof item === "boolean") return item;
-                        const normalized = String(item).trim().toLowerCase();
-                        if (normalized === "true" || normalized === "1") return true;
-                        if (normalized === "false" || normalized === "0") return false;
-                        return Boolean(item);
-                    });
-                default:
-                    throw new Error(`Unsupported array item type: ${itemType}`);
-            }
-        }
-        case "object":
-            const objectValue = recipe[propertyName];
-            const dto = getRegisteredDto(propertySchema.name);
-            if (dto && typeof dto.hydrate === 'function') {
-                const hydratedObject = dto.hydrate(objectValue);
-                return hydratedObject;
-            }
-            return undefined;
-        default:
-            throw new Error(`Unsupported schema type for property ${propertyName}: ${propertySchema.type}`);
-    }
+    return hydrateWithConstructor(this, recipe as HydrationRecipe, schema, getRegisteredDto);
 };
 
 export {
