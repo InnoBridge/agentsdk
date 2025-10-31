@@ -10,9 +10,11 @@ import { strict as assert } from 'node:assert';
 import { ShowResponse } from 'ollama';
 import { WeatherTool } from '@/examples/tools/weather';
 import { BraveSearchTool } from '@/examples/tools/brave_search';
-import { DTO, StructuredOutput } from '@/tools/structured_output';
-import { array } from '@/models/structured_output';
-import { A } from 'ollama/dist/shared/ollama.27169772.mjs';
+import {
+    MathReasoning,
+    AdditionOperation,
+    ArithmeticOperations,
+} from '@/__tests__/models/structured_output';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -127,246 +129,6 @@ const toolCallTest = async (ollamaClient: LLMClient) => {
     console.log('OllamaClient.toolCall test completed.');
 };
 
-@DTO({
-    type: 'object',
-    name: 'Step',
-    description: 'Represents a single step in the reasoning process.',
-    properties: {
-        explanation: 'string',
-        output: 'string',
-    },
-    required: ['explanation', 'output']
-})
-class Step {
-    explanation: string;
-    output: string;
-    
-    constructor(explanation: string, output: string) {
-        this.explanation = explanation;
-        this.output = output;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'MathReasoning',
-    description: 'Represents the step-by-step reasoning process for solving a math problem.',
-    properties: {
-        steps: array(Step),
-        final_answer: { type: 'string' },
-    },
-    required: ['steps', 'final_answer']
-})
-class MathReasoning {
-    steps: Step[];
-    final_answer: string;
-
-    constructor(steps: Step[], final_answer: string) {
-        this.steps = steps;
-        this.final_answer = final_answer;
-    }
-}
-
-interface ArithmeticOperation {
-    getOrder(): number;
-    getStaticNumber(): number;
-    getSymbol(): string;
-    operate(providedNumber: number): number;
-};
-
-@DTO({
-    type: 'object',
-    name: 'AdditionOperation',
-    description: `Represents an addition operation, 
-    where order is the position of the operation in the list.
-    staticNumber is the number term added to the other term.`,
-    properties: {
-        order: 'number',
-        staticNumber: 'number',
-    },
-    required: ['order', 'staticNumber']
-})
-class AdditionOperation implements ArithmeticOperation {
-    private order: number;
-    private staticNumber: number;
-
-    constructor(order: number, staticNumber: number) {
-        this.order = order;
-        this.staticNumber = staticNumber;
-    }
-
-    getOrder(): number {
-        return this.order;
-    }
-
-    getSymbol(): string {
-        return '+';
-    }
-
-    getStaticNumber(): number {
-        return this.staticNumber;
-    }
-
-    operate(providedNumber: number): number {
-        return this.staticNumber + providedNumber;
-    }
-}
-
-
-@DTO({
-    type: 'object',
-    name: 'SubtractionOperation',
-    description: `Represents a subtraction operation, 
-    where order is the position of the operation in the list.
-    staticNumber is the number term subtracted from the other term.`,
-    properties: {
-        order: 'number',
-        staticNumber: 'number',
-    },
-    required: ['order', 'staticNumber']
-})
-class SubtractionOperation implements ArithmeticOperation {
-    private order: number;
-    private staticNumber: number;
-
-    constructor(order: number, staticNumber: number) {
-        this.order = order;
-        this.staticNumber = staticNumber;
-    }
-
-    getOrder(): number {
-        return this.order;
-    }
-
-    getSymbol(): string {
-        return '-';
-    }
-
-    getStaticNumber(): number {
-        return this.staticNumber;
-    }
-
-    operate(providedNumber: number): number {
-        return providedNumber - this.staticNumber;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'MultiplicationOperation',
-    description: `Represents a multiplication operation, 
-    where order is the position of the operation in the list.
-    staticNumber is the number term multiplied to the other term.`,
-    properties: {
-        order: 'number',
-        staticNumber: 'number',
-    },
-    required: ['order', 'staticNumber']
-})
-class MultiplicationOperation implements ArithmeticOperation {
-    private order: number;
-    private staticNumber: number;
-
-    constructor(order: number, staticNumber: number) {
-        this.order = order;
-        this.staticNumber = staticNumber;
-    }
-
-    getOrder(): number {
-        return this.order;
-    }
-
-    getSymbol(): string {
-        return '*';
-    }
-
-    getStaticNumber(): number {
-        return this.staticNumber;
-    }
-
-    operate(providedNumber: number): number {
-        return this.staticNumber * providedNumber;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'DivisionOperation',
-    description: `Represents a division operation, 
-    where order is the position of the operation in the list.
-    staticNumber is the number term the other term is divided by should not be zero.`,
-    properties: {
-        order: 'number',
-        staticNumber: 'number',
-    },
-    required: ['order', 'staticNumber']
-})
-class DivisionOperation implements ArithmeticOperation {
-    private order: number;
-    private staticNumber: number;
-
-    constructor(order: number, staticNumber: number) {
-        this.order = order;
-        this.staticNumber = staticNumber;
-    }
-
-    getOrder(): number {
-        return this.order;
-    }
-
-    getSymbol(): string {
-        return '/';
-    }
-
-    getStaticNumber(): number {
-        return this.staticNumber;
-    }
-
-    operate(providedNumber: number): number {
-        return providedNumber / this.staticNumber;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'ArithmeticOperations',
-    description: 'Represents a basic arithmetic operation.',
-    properties: {
-        additionOperations: array(AdditionOperation),
-        subtractionOperations: array(SubtractionOperation),
-        multiplicationOperations: array(MultiplicationOperation),
-        divisionOperations: array(DivisionOperation)
-    },
-    required: ['additionOperations', 'subtractionOperations', 'multiplicationOperations', 'divisionOperations']
-})
-class ArithmeticOperations {
-    arithmeticOperations: ArithmeticOperation[];
-
-    constructor(
-        additionOperations: AdditionOperation[], 
-        subtractionOperations: SubtractionOperation[],
-        multiplicationOperations: MultiplicationOperation[],
-        divisionOperations: DivisionOperation[]) {
-        this.arithmeticOperations = [
-            ...additionOperations,
-            ...subtractionOperations,
-            ...multiplicationOperations,
-            ...divisionOperations
-        ];
-        // Sort operations by their order
-        this.arithmeticOperations.sort((a, b) => a.getOrder() - b.getOrder());
-    }
-
-    compute(): number {
-        let result = 0;
-        for (const operation of this.arithmeticOperations) {
-            result = operation.operate(result);
-            console.log(`Operation ${operation.getOrder()}: ${result} ${operation.getSymbol()} ${operation.getStaticNumber()} = ${operation.operate(result)}`);
-        }
-        return result;
-    }
-}
-
 const dtoStructuredOutputMathReasoningTest = async (ollamaClient: LLMClient) => {
     console.log('Starting OllamaClient.DTO structuredOutput test...');
 
@@ -432,10 +194,9 @@ const structuredOutputArithmeticOperationsTest = async (ollamaClient: LLMClient)
         // await getModelInfoTest(testLLMClients.getOllamaClient());
         // await chatTest(testLLMClients.getOllamaClient());
         // await toolCallTest(testLLMClients.getOllamaClient());
-        // await structuredOutputTest(testLLMClients.getOllamaClient());
         // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
         await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
-        await shutdownOllama(testLLMClients.getOllamaClient());
+        // await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
     } catch (err) {

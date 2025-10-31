@@ -15,6 +15,7 @@ interface LLMClient {
     chat(input: any): Promise<any>;
     toolCall?(input: any, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]>;
     toStructuredOutput?<T extends typeof StructuredOutput>(input: any, dto: T, retries?: number): Promise<InstanceType<T> | StructuredOutputValidationError>;
+    toStructuredOutputRaw?<T extends typeof StructuredOutput>(input: any, dto: T): Promise<string | undefined>;
     // stream?(input: string | Message[], handler?: { onToken?: (tok: string) => void; onError?: (err: any) => void; onClose?: () => void }, opts?: CallOptions): Promise<void>;
     getModelInfo?(modelId: string): Promise<any>;
     getModels?(): Promise<string[]>;

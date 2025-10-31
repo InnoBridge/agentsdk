@@ -104,6 +104,24 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         throw new StructuredOutputValidationError('Structured output validation failed with error ' + JSON.stringify(validationResult?.errors), validationResult);
     }
 
+    async toStructuredOutputRaw<T extends typeof StructuredOutput>(
+        input: ChatRequest,
+        dto: T,
+    ): Promise<string | undefined> {
+        const schema = dto.getSchema?.();
+        if (!schema) {
+            throw new Error('DTO class does not have a schema defined.');
+        }
+
+        const request: ChatRequest = {
+            ...input,
+            format: schema,
+            stream: false,
+        };
+        const response = await this.chat(request);
+        return response.message?.content;
+    }
+
     async stop(): Promise<void> {
         // Call the Component stop implementation on the superclass to avoid recursion
         super.stop();

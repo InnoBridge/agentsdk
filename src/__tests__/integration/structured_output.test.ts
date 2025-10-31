@@ -1,89 +1,12 @@
-import { DTO, StructuredOutput } from '@/tools/structured_output';
-import { array, SchemaDefinition } from '@/models/structured_output';
+import { StructuredOutput } from '@/tools/structured_output';
 import { JSONSchema } from 'openai/lib/jsonschema.js';
-
-@DTO({
-    type: 'object',
-    name: 'Step',
-    description: 'Represents a single step in the reasoning process.',
-    properties: {
-        explanation: "string",
-        output: "string",
-    },
-    required: ['explanation', 'output']
-})
-class Step {
-    explanation: string;
-    output: string;
-    
-    constructor(explanation: string, output: string) {
-        this.explanation = explanation;
-        this.output = output;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'Metadata',
-    description: 'Represents provenance metadata about a reasoning trace.',
-    properties: {
-        source: "string",
-        confidence: "number"
-    },
-    required: ['source']
-})
-class Metadata {
-    source: string;
-    confidence?: number;
-
-    constructor(source: string, confidence?: number) {
-        this.source = source;
-        this.confidence = confidence;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'ReasoningSummary',
-    description: 'Aggregates reasoning steps with summary metadata and tags.',
-    properties: {
-        steps: array(Step),
-        metadata: Metadata,
-        tags: array("string")
-    },
-    required: ['steps', 'metadata']
-})
-class ReasoningSummary {
-    steps: Step[];
-    metadata: Metadata;
-    tags: string[];
-
-    constructor(steps: Step[], metadata: Metadata, tags: string[]) {
-        this.steps = steps;
-        this.metadata = metadata;
-        this.tags = tags;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'MathReasoning',
-    description: 'Represents the step-by-step reasoning process for solving a math problem.',
-    properties: {
-        steps: array(Step),
-        final_answer: "string"
-    },
-    required: ['steps', 'final_answer']
-})
-class MathReasoning {
-    steps: Step[];
-    final_answer: string;
-
-    constructor(steps: Step[], final_answer: string) {
-        this.steps = steps;
-        this.final_answer = final_answer;
-    }
-}
+import {
+    Step,
+    Metadata,
+    ReasoningSummary,
+    MathReasoning,
+    ArithmeticOperations,
+} from '@/__tests__/models/structured_output';
 
 const getSchema = (structure: Array<typeof StructuredOutput>): JSONSchema[] => {
     return structure.map(struct => struct.getSchema!()).filter(Boolean) as JSONSchema[];
@@ -96,66 +19,6 @@ const structuredOutputGetMathLogicSchemaTest = () => {
 
     console.log('Structured output tests completed.');
 };
-
-@DTO({
-    type: 'object',
-    name: 'AdditionOperation',
-    description: 'Represents an addition operation.',
-    properties: {
-        operand1: "number",
-        operand2: "number"
-    },
-    required: ['operand1', 'operand2']
-})
-class AdditionOperation {
-    operand1: number;
-    operand2: number;
-    
-    constructor(operand1: number, operand2: number) {
-        this.operand1 = operand1;
-        this.operand2 = operand2;
-    }
-
-    operate(): number {
-        return this.operand1 + this.operand2;
-    }
-}
-
-@DTO({
-    type: 'object',
-    name: 'ArithmeticOperations',
-    description: 'Represents a basic arithmetic operation.',
-    properties: {
-        arithmeticOperations: array(AdditionOperation),
-        semanticOperation: AdditionOperation
-    },
-    required: ['semanticOperation']
-})
-class ArithmeticOperations {
-    arithmeticOperations: AdditionOperation[];
-    semanticOperation?: AdditionOperation;
-
-    constructor(
-        additionOperations: AdditionOperation[],
-        semanticOperation?: AdditionOperation
-    ) {
-        this.arithmeticOperations = additionOperations;
-        this.semanticOperation = semanticOperation;
-    }
-
-    getArithmeticOperations(): AdditionOperation[] {
-        return this.arithmeticOperations;
-    }
-
-    compute(): number {
-        let result = 0;
-        for (const operation of this.arithmeticOperations) {
-            result += operation.operate();
-        }
-        return result;
-    }
-}
-
 
 const structuredOutputGetArithmeticOperationsSchemaTest = () => {
     console.log('Starting structured output tests for ArithmeticOperations...');
@@ -276,9 +139,9 @@ const testReasoningSummaryHydration = () => {
     // structuredOutputGetArithmeticOperationsSchemaTest();
     // structuredOutputValidationTest();
     // testMathReasoningHydration();
-    testObjectRecipeHydration();
+    // testObjectRecipeHydration();
     // testInvalidHydrations();
-    // testReasoningSummaryHydration();
+    testReasoningSummaryHydration();
 
         console.log("🎉 All integration tests passed");
     } catch (err) {
