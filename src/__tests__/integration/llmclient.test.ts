@@ -227,7 +227,7 @@ const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
             {
                 role: 'user',
                 content:
-                    'Report the latest reading for device sensor-123 located in the lab. Temperature is 21.5°C, humidity 55%, device currently online.',
+                    'Report the latest reading for device sensor-123 located in the lab. Temperature is boiling temp in fahrenheit, humidity 55%, device currently online.',
             },
         ],
     };

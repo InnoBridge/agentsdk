@@ -1,5 +1,5 @@
 import { DTO } from '@/tools/structured_output';
-import { array } from '@/models/structured_output';
+import { array, enumToSchema } from '@/models/structured_output';
 
 @DTO({
 	type: 'object',
@@ -374,35 +374,49 @@ class UserProfile {
 	}
 }
 
+enum TemperatureUnit {
+    Celsius = 'C',
+    Fahrenheit = 'F',
+    Kelvin = 'K',
+}
+
 @DTO({
 	type: 'object',
 	name: 'TelemetryReading',
 	description: 'Captures sensor telemetry with coercible primitives.',
 	properties: {
 		deviceId: { type: 'string' },
-		temperatureCelsius: { type: 'number' },
+        temperatureUnit: enumToSchema({
+            type: 'string',
+            enum: Object.values(TemperatureUnit),
+            description: 'The unit of temperature measurement.',
+        }),
+		temperature: { type: 'number' },
 		humidityPercentage: { type: 'number' },
 		isOnline: { type: 'boolean' },
 		notes: array({ type: 'string' }),
 	},
-	required: ['deviceId', 'temperatureCelsius', 'humidityPercentage', 'isOnline'],
+	required: ['deviceId', 'temperatureUnit', 'temperature', 'humidityPercentage', 'isOnline'],
 })
 class TelemetryReading {
 	deviceId: string;
-	temperatureCelsius: number;
+    temperatureUnit: string;
+	temperature: number;
 	humidityPercentage: number;
 	isOnline: boolean;
 	notes: string[];
 
 	constructor(
 		deviceId: string,
-		temperatureCelsius: number,
+        temperatureUnit: string,
+		temperature: number,
 		humidityPercentage: number,
 		isOnline: boolean,
 		notes: string[] = [],
 	) {
 		this.deviceId = deviceId;
-		this.temperatureCelsius = temperatureCelsius;
+        this.temperatureUnit = temperatureUnit;
+		this.temperature = temperature;
 		this.humidityPercentage = humidityPercentage;
 		this.isOnline = isOnline;
 		this.notes = notes;

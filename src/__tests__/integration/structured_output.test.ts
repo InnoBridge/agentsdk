@@ -180,7 +180,8 @@ const testTelemetryReadingCoercion = () => {
     console.log('Starting TelemetryReading hydration test...');
     const readingRecipe = {
         deviceId: 'sensor-123',
-        temperatureCelsius: '21.5',
+        temperatureUnit: 'C',
+        temperature: '21.5',
         humidityPercentage: '55',
         isOnline: 'false',
         notes: ['scheduled calibration']
@@ -188,19 +189,21 @@ const testTelemetryReadingCoercion = () => {
 
     const validationPayload = {
         deviceId: 'sensor-123',
-        temperatureCelsius: 21.5,
+        temperatureUnit: 'C',
+        temperature: 21.5,
         humidityPercentage: 55,
         isOnline: true,
         notes: ['scheduled calibration']
     };
     const validation = (TelemetryReading as typeof StructuredOutput).validate?.(validationPayload);
+    console.log('TelemetryReading validation result:', validation);
     if (!validation?.valid) throw new Error('Expected TelemetryReading validation to succeed');
 
     const hydratedReading = (TelemetryReading as typeof StructuredOutput).hydrate?.(readingRecipe);
     console.log('Hydrated TelemetryReading instance:', hydratedReading);
     if (!hydratedReading) throw new Error('Expected TelemetryReading hydration to produce an instance');
     if (!(hydratedReading instanceof TelemetryReading)) throw new Error('Hydration result is not a TelemetryReading instance');
-    if (hydratedReading.temperatureCelsius !== 21.5) throw new Error('Temperature did not coerce into a number');
+    if (hydratedReading.temperature !== 21.5) throw new Error('Temperature did not coerce into a number');
     if (hydratedReading.humidityPercentage !== 55) throw new Error('Humidity did not coerce into a number');
     if (hydratedReading.isOnline !== false) throw new Error('Boolean coercion failed for isOnline');
     console.log('TelemetryReading hydration test passed');
