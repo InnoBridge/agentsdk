@@ -52,15 +52,15 @@ The decorator stores schema metadata and registers the class so nested reference
 
 ```ts
 import { DTO, StructuredOutput } from "@/tools/structured_output";
-import { array } from "@/models/structured_output";
+import { array, enum as enumSchema } from "@/models/structured_output";
 
 @DTO({
     type: "object",
     name: "AdditionOperation",
     description: "Represents an addition operation.",
     properties: {
-        operand1: "number",
-        operand2: "number",
+        operand1: { type: "number", description: "First operand." },
+        operand2: { type: "number", description: "Second operand." },
     },
     required: ["operand1", "operand2"],
 })
@@ -90,11 +90,52 @@ class ArithmeticOperations extends StructuredOutput {
 }
 ```
 
+Helpers such as `array` and `enum` live in `src/models/structured_output.ts` — see [structured_output.ts](../../src/models/structured_output.ts).
+
 ### Supported property types
-- Primitive literals: `"string"`, `"number"`, `"boolean"`.
+- Primitive schemas use an object with `type` (e.g. `"string"`, `"number"`, `"boolean"`) plus optional metadata like `description` or `enum`.
 - DTO classes that extend `StructuredOutput` (nested objects).
 - Arrays of primitives or DTOs via the `array()` helper.
 - Raw JSON schema fragments for advanced scenarios.
+
+### Defining enums
+Use the `enum()` helper exported from `src/models/structured_output.ts`. Provide a non-empty array of allowed values along with the primitive `type` and any descriptive metadata.
+
+```ts
+import { enum as enumSchema } from "@/models/structured_output";
+
+enum TemperatureUnit {
+    Celsius = "celsius",
+    Fahrenheit = "fahrenheit",
+}
+
+@DTO({
+    type: "object",
+    name: "TemperatureReading",
+    description: "DTO representing a temperature measurement with an explicit unit.",
+    properties: {
+        temperature: { type: "number", description: "Numeric temperature reading." },
+        temperatureUnit: enumSchema({
+            type: "string",
+            description: "Unit associated with the reading.",
+            enum: Object.values(TemperatureUnit),
+        }),
+    },
+    required: ["temperature", "temperatureUnit"],
+})
+class TemperatureReading {
+    temperature: number;
+    temperatureUnit: string;
+
+    constructor(
+        temperature: number,
+        temperatureUnit: string,
+    ) {
+        this.temperature = temperature;
+        this.temperatureUnit = temperatureUnit;
+    }
+}
+```
 
 ### Defining arrays
 Use the helper exported from `src/models/structured_output.ts`:
@@ -105,7 +146,7 @@ import { array } from "@/models/structured_output";
 @DTO({
     ...,
     properties: {
-        tags: array("string"),
+        tags: array({ type: "string" }),
         steps: array(Step),    // Step must also be a StructuredOutput subclass
     },
 })
@@ -210,5 +251,4 @@ const result = AdditionOperation.hydrate(payload);
 - **Guide the model.** Combine the schema with concise, imperative instructions to improve adherence and reduce repair work.
 
 ## Future work
-- **Enum support**: OpenAI’s structured output API accepts enumerations. We can extend `SchemaValue` and the schema builder to accept enum literals (e.g. `enum: ['add', 'subtract']`) and surface them through the decorator.
 - **`anyOf`**: Still unsupported; handling discriminated unions would require broader changes to hydration and constructor mapping. Keeping this out of scope for now avoids ambiguous runtime shapes.

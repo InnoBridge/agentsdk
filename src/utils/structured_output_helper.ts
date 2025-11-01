@@ -70,18 +70,46 @@ const buildSchemaValue = (
                     items: schemaValue.length === 1
                         ? buildSchemaValue(schemaValue[0], resolveStructuredSchema)
                         : schemaValue.map((value) => buildSchemaValue(value, resolveStructuredSchema))
-                };
+                } as JsonSchema;
             }
 
-            if ((schemaValue as any).type === "array") {
-                const items = (schemaValue as any).items;
+            const { type, properties, items, ...rest } = schemaValue as Record<string, unknown>;
+
+            if (type === "array") {
+                const normalizedItems = items !== undefined
+                    ? buildSchemaValue(items as SchemaValue, resolveStructuredSchema)
+                    : undefined;
+
                 return {
-                    type: "array",
-                    items: buildSchemaValue(items, resolveStructuredSchema)
-                };
+                    type,
+                    ...rest,
+                    ...(normalizedItems !== undefined ? { items: normalizedItems } : {}),
+                } as JsonSchema;
             }
 
-            return schemaValue as JsonSchema;
+            if (type === "object" && properties && typeof properties === "object" && !Array.isArray(properties)) {
+                const normalizedProperties: Record<string, unknown> = {};
+                for (const [key, value] of Object.entries(properties as Record<string, SchemaValue>)) {
+                    normalizedProperties[key] = buildSchemaValue(value, resolveStructuredSchema);
+                }
+
+                return {
+                    type,
+                    ...rest,
+                    properties: normalizedProperties,
+                } as JsonSchema;
+            }
+
+            if (type === "string" || type === "number" || type === "boolean") {
+                return {
+                    type,
+                    ...rest,
+                } as JsonSchema;
+            }
+
+            return {
+                ...schemaValue,
+            } as JsonSchema;
         }
         default:
             throw new Error(`Unsupported schema value: ${String(schemaValue)}`);

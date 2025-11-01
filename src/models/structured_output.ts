@@ -25,6 +25,38 @@ const array = (value: SchemaValue): ArraySchemaValue => {
     };
 };
 
+type EnumProp = {
+    type?: string;
+    description?: string;
+    enum: unknown[];
+};
+
+type EnumSchema = JsonSchema & {
+    type?: string;
+    description?: string;
+    enum: unknown[];
+};
+
+const enumToSchema = (enumProp: EnumProp): EnumSchema => {
+    if (!Array.isArray(enumProp.enum) || enumProp.enum.length === 0) {
+        throw new Error("Enum values must be a non-empty array");
+    }
+
+    const schema: EnumSchema = {
+        enum: [...enumProp.enum],
+    };
+
+    if (enumProp.type !== undefined) {
+        schema.type = enumProp.type;
+    }
+
+    if (enumProp.description !== undefined) {
+        schema.description = enumProp.description;
+    }
+
+    return schema;
+};
+
 type SchemaDefinition = {
     type: string;
     name: string;
@@ -56,5 +88,8 @@ export {
     ValidatedResult,
     Repair,
     array,
-    SchemaValue
+    enumToSchema,
+    SchemaValue,
+    EnumProp,
+    EnumSchema,
 }
