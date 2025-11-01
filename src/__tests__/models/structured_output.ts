@@ -6,8 +6,8 @@ import { array } from '@/models/structured_output';
 	name: 'Step',
 	description: 'Represents a single step in the reasoning process.',
 	properties: {
-		explanation: 'string',
-		output: 'string',
+		explanation: { type: 'string' },
+		output: { type: 'string' },
 	},
 	required: ['explanation', 'output'],
 })
@@ -26,8 +26,8 @@ class Step {
 	name: 'Metadata',
 	description: 'Represents provenance metadata about a reasoning trace.',
 	properties: {
-		source: 'string',
-		confidence: 'number',
+		source: { type: 'string' },
+		confidence: { type: 'number' },
 	},
 	required: ['source'],
 })
@@ -48,7 +48,7 @@ class Metadata {
 	properties: {
 		steps: array(Step),
 		metadata: Metadata,
-		tags: array('string'),
+		tags: array({ type: 'string' }),
 	},
 	required: ['steps', 'metadata'],
 })
@@ -70,7 +70,7 @@ class ReasoningSummary {
 	description: 'Represents the step-by-step reasoning process for solving a math problem.',
 	properties: {
 		steps: array(Step),
-		final_answer: 'string',
+		final_answer: { type: 'string' },
 	},
 	required: ['steps', 'final_answer'],
 })
@@ -93,11 +93,17 @@ interface ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'OrderedAdditionOperation',
+	name: 'AdditionOperation',
 	description: 'Represents an ordered addition operation.',
 	properties: {
-		order: 'number',
-		staticNumber: 'number',
+		order: { 
+            type: 'number',
+            description: 'The order of this operation in the sequence.',
+         },
+		staticNumber: { 
+            type: 'number',
+            description: 'The static number used in this operation.',
+        },
 	},
 	required: ['order', 'staticNumber'],
 })
@@ -129,11 +135,11 @@ class AdditionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'OrderedSubtractionOperation',
+	name: 'SubtractionOperation',
 	description: 'Represents an ordered subtraction operation.',
 	properties: {
-		order: 'number',
-		staticNumber: 'number',
+		order: { type: 'number' },
+		staticNumber: { type: 'number' },
 	},
 	required: ['order', 'staticNumber'],
 })
@@ -165,11 +171,11 @@ class SubtractionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'OrderedMultiplicationOperation',
+	name: 'MultiplicationOperation',
 	description: 'Represents an ordered multiplication operation.',
 	properties: {
-		order: 'number',
-		staticNumber: 'number',
+		order: { type: 'number' },
+		staticNumber: { type: 'number' },
 	},
 	required: ['order', 'staticNumber'],
 })
@@ -201,11 +207,11 @@ class MultiplicationOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'OrderedDivisionOperation',
+	name: 'DivisionOperation',
 	description: 'Represents an ordered division operation.',
 	properties: {
-		order: 'number',
-		staticNumber: 'number',
+		order: { type: 'number' },
+		staticNumber: { type: 'number' },
 	},
 	required: ['order', 'staticNumber'],
 })
@@ -237,7 +243,7 @@ class DivisionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'OrderedArithmeticOperations',
+	name: 'ArithmeticOperations',
 	description: 'Represents a sequence of ordered arithmetic operations.',
 	properties: {
 		additionOperations: array(AdditionOperation),
@@ -288,12 +294,12 @@ class ArithmeticOperations {
 	name: 'Address',
 	description: 'Street-level address information.',
 	properties: {
-		line1: 'string',
-		city: 'string',
-		country: 'string',
-		line2: 'string',
-		state: 'string',
-		postalCode: 'string',
+		line1: { type: 'string' },
+		city: { type: 'string' },
+		country: { type: 'string' },
+		line2: { type: 'string' },
+		state: { type: 'string' },
+		postalCode: { type: 'string' },
 	},
 	required: ['line1', 'city', 'country'],
 })
@@ -327,13 +333,16 @@ class Address {
 	name: 'UserProfile',
 	description: 'Represents a fully hydrated user profile with nested addresses.',
 	properties: {
-		id: 'string',
-		displayName: 'string',
-		age: 'number',
-		isActive: 'boolean',
+		id: {
+			type: 'string',
+			description: 'Unique user identifier.',
+		},
+		displayName: { type: 'string' },
+		age: { type: 'number' },
+		isActive: { type: 'boolean' },
 		primaryAddress: Address,
 		previousAddresses: array(Address),
-		emails: array('string'),
+		emails: array({ type: 'string' }),
 	},
 	required: ['id', 'displayName', 'age', 'isActive', 'primaryAddress'],
 })
@@ -370,11 +379,11 @@ class UserProfile {
 	name: 'TelemetryReading',
 	description: 'Captures sensor telemetry with coercible primitives.',
 	properties: {
-		deviceId: 'string',
-		temperatureCelsius: 'number',
-		humidityPercentage: 'number',
-		isOnline: 'boolean',
-		notes: array('string'),
+		deviceId: { type: 'string' },
+		temperatureCelsius: { type: 'number' },
+		humidityPercentage: { type: 'number' },
+		isOnline: { type: 'boolean' },
+		notes: array({ type: 'string' }),
 	},
 	required: ['deviceId', 'temperatureCelsius', 'humidityPercentage', 'isOnline'],
 })
