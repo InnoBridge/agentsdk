@@ -52,7 +52,7 @@ The decorator stores schema metadata and registers the class so nested reference
 
 ```ts
 import { DTO, StructuredOutput } from "@/tools/structured_output";
-import { array } from "@/models/structured_output";
+import { array, enum as enumSchema } from "@/models/structured_output";
 
 @DTO({
     type: "object",
@@ -89,6 +89,8 @@ class ArithmeticOperations extends StructuredOutput {
     }
 }
 ```
+
+Helpers such as `array` and `enum` live in `src/models/structured_output.ts` — see [structured_output.ts](../../src/models/structured_output.ts).
 
 ### Supported property types
 - Primitive schemas use an object with `type` (e.g. `"string"`, `"number"`, `"boolean"`) plus optional metadata like `description` or `enum`.

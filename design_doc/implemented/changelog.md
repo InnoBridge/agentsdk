@@ -6,6 +6,7 @@
 | | 2025-10-18 | [LLMClient](./llmclient.md) | | [Change to OllamaSDK](https://github.com/InnoBridge/agentsdk/pull/2)|  |
 | [2](#2---tools) | 2025-10-21 | [Tools](../proposals/tools.md) | | [Implement Tools](https://github.com/InnoBridge/agentsdk/pull/3) |  |
 | [3](#3---structured-outputs) | 2025-10-31 | [Structured Output](./structured_output.md) | | [Implement Structured Output](https://github.com/InnoBridge/agentsdk/pull/4) |  |
+| | 2025-10-31 | [Structured Output](./structured_output.md) | | [Add enum support](https://github.com/InnoBridge/agentsdk/pull/5) |  |
 
 <a id="1---llm-client"></a>
 
@@ -73,8 +74,9 @@ Highlights from [structured_output.md](./structured_output.md):
 - Captures the runtime architecture built around the `StructuredOutput` base class, `@DTO` decorator, schema cache, Ajv-backed validator, and recursive hydrator.
 - Documents how `getSchema()` derives nested schemas and how `hydrate()` re-instantiates nested DTO graphs from model responses.
 - LLM integration: [`OllamaClient.toStructuredOutput`](../../src/client/ollama_client.ts) shows how schema generation, validation, and hydration plug into provider calls end-to-end.
-- Records best practices and follow-up work (enum support, potential `anyOf` handling) alongside type-coercion behavior.
+-- Records best practices and follow-up work (potential `anyOf` handling) alongside type-coercion behavior.
+-- Adds first-class enum support via an `enum` helper exported from `src/models/structured_output.ts`; see PR [Add enum support](https://github.com/InnoBridge/agentsdk/pull/5).
 
-Related implementation work: [Implement Structured Output](https://github.com/InnoBridge/agentsdk/pull/4).
 
 
+ 
