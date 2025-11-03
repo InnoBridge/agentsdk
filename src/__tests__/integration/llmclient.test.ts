@@ -18,6 +18,7 @@ import {
     TelemetryReading,
 } from '@/__tests__/models/structured_output';
 import { StructuredOutput } from '@/tools/structured_output';
+import { ToolComponent } from '@/tools/tool';
 
 class TestLLMClients {
     @Insert(OllamaClient)
@@ -114,11 +115,11 @@ const chatTest = async (ollamaClient: LLMClient) => {
 const toolCallTest = async (ollamaClient: LLMClient) => {
     console.log('Starting OllamaClient.toolCall test...');
 
-    const tools = [WeatherTool, BraveSearchTool];
+    const tools = [WeatherTool, BraveSearchTool] as Array<typeof ToolComponent>;
     const input: any = {
         model: 'qwen3-coder:30b',
         messages: [
-            { role: 'user', content: 'What is the temperature in New York City, and Beijing in celsius? is Aws still down?' },
+            { role: 'user', content: 'What is the temperature in New York City, and Berlin in Fahrenheit? is Aws still down?' },
         ],
     };
 
@@ -260,11 +261,11 @@ const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
         // await getModelsTest(testLLMClients.getOllamaClient());
         // await getModelInfoTest(testLLMClients.getOllamaClient());
         // await chatTest(testLLMClients.getOllamaClient());
-        // await toolCallTest(testLLMClients.getOllamaClient());
+        await toolCallTest(testLLMClients.getOllamaClient());
         // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
         // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
-        await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
+        // await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
         // await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

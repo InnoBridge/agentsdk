@@ -1,7 +1,8 @@
 import Ajv from "ajv";
-import { JsonSchema, SchemaDefinition, Repair, ValidatedResult } from "@/models/structured_output";
+import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, StructuredOutputType } from "@/models/structured_output";
 import { copyPrototypeChain } from "@/utils/prototype_helper";
 import { buildJSONFromSchema, hydrateWithConstructor, HydrationRecipe, StoredSchema } from "@/utils/structured_output_helper";
+import { ToolComponent } from "./tool";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
@@ -29,58 +30,118 @@ const getRegisteredDto = (name: string): typeof StructuredOutput | undefined => 
 
 function DTO(schemaDefinition: SchemaDefinition) {
     schemaDefinition.type = schemaDefinition.type || 'object';
-    const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & StructuredOutput) & { getSchema?: () => SchemaDefinition | undefined } => {
+    return BaseStructuredOutput(schemaDefinition);
+}
 
-        // Create a new class that extends StructuredOutput
-        const Decorated = class extends StructuredOutput {
-            constructor(...args: any[]) {
-                super(...args);
-                const instance = Reflect.construct(Target, args, new.target);
-                Object.assign(this, instance);
-            }
+function BaseStructuredOutput(schemaDefinition: SchemaDefinition, structuredOutputType: StructuredOutputType = StructuredOutputType.DTO) {
+    if (structuredOutputType === StructuredOutputType.DTO) {
+        const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & StructuredOutput) & { getSchema?: () => SchemaDefinition | undefined } => {
+
+            // Create a new class that extends StructuredOutput
+            const Decorated = class extends StructuredOutput {
+                constructor(...args: any[]) {
+                    super(...args);
+                    const instance = Reflect.construct(Target, args, new.target);
+                    Object.assign(this, instance);
+                }
+            };
+
+            // Set the class name to match the original Target
+            Object.defineProperty(Decorated, 'name', {
+                value: Target.name,
+                writable: false,
+                configurable: true
+            });
+                
+            copyPrototypeChain(Target.prototype, Decorated.prototype, StructuredOutput.prototype);
+
+            const resolveStructuredSchema = (ctor: Function): JsonSchema | undefined => {
+                if (typeof ctor === "function" && ctor.prototype instanceof StructuredOutput) {
+                    return (ctor as typeof StructuredOutput).getSchema?.() ?? undefined;
+                }
+                return undefined;
+            };
+
+            const jsonSchema = buildJSONFromSchema(schemaDefinition, resolveStructuredSchema, structuredOutputType);
+
+            // Attach the canonical schema definition to the decorated class
+            // StructuredOutput.getSchema() (or other helpers) can read it.
+            Object.defineProperty(Decorated, schemaMetadata, {
+                value: jsonSchema,
+                enumerable: false,
+                writable: false,
+                configurable: true
+            });
+
+            // Copy static properties from Target
+            Object.getOwnPropertyNames(Target).forEach((name) => {
+                if (['prototype', 'name', 'length'].includes(name)) return;
+                const descriptor = Object.getOwnPropertyDescriptor(Target, name);
+                if (descriptor) {
+                    Object.defineProperty(Decorated, name, descriptor);
+                }
+            });
+
+            registerDto(Decorated, schemaDefinition.name);
+            return Decorated as any;
         };
-
-        // Set the class name to match the original Target
-        Object.defineProperty(Decorated, 'name', {
-            value: Target.name,
-            writable: false,
-            configurable: true
-        });
             
-        copyPrototypeChain(Target.prototype, Decorated.prototype, StructuredOutput.prototype);
+        return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
+    } else if (structuredOutputType === StructuredOutputType.TOOL) {
+        const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & ToolComponent) & { getSchema?: () => SchemaDefinition | undefined } => {
 
-        const resolveStructuredSchema = (ctor: Function): JsonSchema | undefined => {
-            if (typeof ctor === "function" && ctor.prototype instanceof StructuredOutput) {
-                return (ctor as typeof StructuredOutput).getSchema?.() ?? undefined;
-            }
-            return undefined;
+            // Create a new class that extends ToolComponent
+            const Decorated = class extends ToolComponent {
+                constructor(...args: any[]) {
+                    super(...args);
+                    const instance = Reflect.construct(Target, args, new.target);
+                    Object.assign(this, instance);
+                }
+            };
+
+            // Set the class name to match the original Target
+            Object.defineProperty(Decorated, 'name', {
+                value: Target.name,
+                writable: false,
+                configurable: true
+            });
+                
+            copyPrototypeChain(Target.prototype, Decorated.prototype, StructuredOutput.prototype);
+
+            const resolveStructuredSchema = (ctor: Function): JsonSchema | undefined => {
+                if (typeof ctor === "function" && ctor.prototype instanceof ToolComponent) {
+                    return (ctor as typeof ToolComponent).getSchema?.() ?? undefined;
+                }
+                return undefined;
+            };
+
+            const jsonSchema = buildJSONFromSchema(schemaDefinition, resolveStructuredSchema, structuredOutputType);
+
+            // Attach the canonical schema definition to the decorated class
+            // StructuredOutput.getSchema() (or other helpers) can read it.
+            Object.defineProperty(Decorated, schemaMetadata, {
+                value: jsonSchema,
+                enumerable: false,
+                writable: false,
+                configurable: true
+            });
+
+            // Copy static properties from Target
+            Object.getOwnPropertyNames(Target).forEach((name) => {
+                if (['prototype', 'name', 'length'].includes(name)) return;
+                const descriptor = Object.getOwnPropertyDescriptor(Target, name);
+                if (descriptor) {
+                    Object.defineProperty(Decorated, name, descriptor);
+                }
+            });
+
+            registerDto(Decorated, schemaDefinition.name);
+            return Decorated as any;
         };
-
-        const jsonSchema = buildJSONFromSchema(schemaDefinition, resolveStructuredSchema);
-
-        // Attach the canonical schema definition to the decorated class
-        // StructuredOutput.getSchema() (or other helpers) can read it.
-        Object.defineProperty(Decorated, schemaMetadata, {
-            value: jsonSchema,
-            enumerable: false,
-            writable: false,
-            configurable: true
-        });
-
-        // Copy static properties from Target
-        Object.getOwnPropertyNames(Target).forEach((name) => {
-            if (['prototype', 'name', 'length'].includes(name)) return;
-            const descriptor = Object.getOwnPropertyDescriptor(Target, name);
-            if (descriptor) {
-                Object.defineProperty(Decorated, name, descriptor);
-            }
-        });
-
-        registerDto(Decorated, schemaDefinition.name);
-        return Decorated as any;
-    };
-          
-    return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
+              
+        return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
+    }
+    throw new Error(`Unsupported StructuredOutputType: ${structuredOutputType}`);
 }
 
 class StructuredOutput {
@@ -152,6 +213,7 @@ StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput
 
 export {
     StructuredOutput,
+    BaseStructuredOutput,
     DTO,
     getRegisteredDto
 };

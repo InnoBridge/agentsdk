@@ -388,7 +388,7 @@ enum TemperatureUnit {
 		deviceId: { type: 'string' },
         temperatureUnit: enumToSchema({
             type: 'string',
-            enum: Object.values(TemperatureUnit),
+            enum: [TemperatureUnit],
             description: 'The unit of temperature measurement.',
         }),
 		temperature: { type: 'number' },

@@ -1,7 +1,7 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import { StructuredOutputValidationError, type LLMClient } from '@/client/llmclient';
-import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
+import { ToolComponent, JsonSchema } from "@/tools/tool";
 import { StructuredOutput } from "@/tools/structured_output";
 
 @Singleton
@@ -32,31 +32,42 @@ class OllamaClient extends SingletonComponent implements LLMClient {
 
     async toolCall(input: ChatRequest, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
         const toolNameToolComponentMap = new Map<string, typeof ToolComponent>();
+
         tools.forEach(tool => {
-            const name = tool.getDefinition?.()?.name;
-            if (name) {
-                toolNameToolComponentMap.set(name, tool);
-            }
+            const schema = tool.getSchema?.();
+            const name = (schema as { name?: string } | undefined)?.name;
+        //     if (name) {
+        //         toolNameToolComponentMap.set(name, tool);
+        //     }
         });
         const toolParams = tools
             .map(tool => {
-                const def = tool.getDefinition?.();
-                if (def) {
-                    return mapToolDefinitionToTool(def);
+                const schema = tool.getToolSchema?.();
+                if (schema) {
+                    return {
+                        type: (schema as { type?: string }).type ?? 'function',
+                        function: schema
+                    }
                 }
                 return undefined;
             })
             .filter((def): def is Tool => def !== undefined);
+        
+        console.log('Tool parameters: ', JSON.stringify(toolParams, null, 2));
 
         input.tools = toolParams;
         const result = await this.chat({ ...input, stream: false });
-        const toolCalls: ToolComponent[] = result.message.tool_calls
-            ? result.message.tool_calls.map(toolCall => {
-                const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
-                return toolComponent?.hydrate?.(toolCall);
-            }).filter((tc): tc is ToolComponent => tc !== undefined)
-            : [];
-        return toolCalls;
+
+        console.log("Tool call response: ", JSON.stringify(result, null, 2));
+
+        // const toolCalls: ToolComponent[] = result.message.tool_calls
+        //     ? result.message.tool_calls.map(toolCall => {
+        //         const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
+        //         return toolComponent?.hydrate?.(toolCall);
+        //     }).filter((tc): tc is ToolComponent => tc !== undefined)
+        //     : [];
+        // return toolCalls;
+        return [];
     };
 
     async toStructuredOutput<T extends typeof StructuredOutput>(
@@ -134,32 +145,69 @@ interface OllamaToolParameters {
     $defs?: any;
     items?: any;
     required?: string[];
-    properties?: {
-        [key: string]: {
-            type?: string | string[];
-            items?: any;
-            description?: string;
-            enum?: any[];
-        };
-    };
+    properties?: Record<string, JsonSchema>;
+    additionalProperties?: boolean;
+    strict?: boolean;
+    allowNoSchema?: boolean;
 }
 
-const mapParameterJsonSchemaToOllamaToolParameter = (schema?: JsonSchema): OllamaToolParameters | undefined => {
-    if (!schema) return undefined;
-    // Ollama's Tool.parameters expects a JSON Schema-like object. We keep a
-    // shallow mapping here to preserve the canonical schema shape while
-    // allowing future provider-specific transformations.
-    return schema as unknown as OllamaToolParameters;
+const mapSchemaToToolParameters = (schema: JsonSchema): OllamaToolParameters | undefined => {
+    if (typeof schema !== 'object' || !schema) return undefined;
+
+    const properties = (schema as { properties?: Record<string, JsonSchema> }).properties;
+    const directProperties =
+        properties ?? (Object.keys(schema).length > 0 ? (schema as Record<string, JsonSchema>) : undefined);
+
+    if (!directProperties || Object.keys(directProperties).length === 0) {
+        return undefined;
+    }
+
+    const parameters: OllamaToolParameters = {
+        type: 'object',
+        properties: directProperties,
+    };
+
+    const required = (schema as { required?: string[] }).required;
+    if (Array.isArray(required) && required.length > 0) {
+        parameters.required = required;
+    }
+
+    const additionalProperties = (schema as { additionalProperties?: boolean }).additionalProperties;
+    if (additionalProperties !== undefined) {
+        parameters.additionalProperties = additionalProperties;
+    }
+
+    const strict = (schema as { strict?: boolean }).strict;
+    if (strict !== undefined) {
+        parameters.strict = strict;
+    }
+
+    const allowNoSchema = (schema as { allowNoSchema?: boolean }).allowNoSchema;
+    if (allowNoSchema !== undefined) {
+        parameters.allowNoSchema = allowNoSchema;
+    }
+
+    return parameters;
 };
 
-const mapToolDefinitionToTool = (def: ToolDefinition): Tool => {
+const mapToolSchemaToTool = (schema: JsonSchema): Tool | undefined => {
+    if (typeof schema !== 'object' || !schema) return undefined;
+
+    const toolType = (schema as { type?: string }).type ?? 'function';
+    const name = (schema as { name?: string }).name;
+    if (!name) return undefined;
+
+    const description = (schema as { description?: string }).description;
+    const parametersSchema = (schema as { parameters?: JsonSchema }).parameters;
+    const parameters = parametersSchema ? mapSchemaToToolParameters(parametersSchema) : undefined;
+
     return {
-        type: def.type,
+        type: toolType,
         function: {
-            name: def.name,
-            description: def.description,
-            parameters: mapParameterJsonSchemaToOllamaToolParameter(def.parameters),
-        }
+            name,
+            ...(description ? { description } : {}),
+            ...(parameters ? { parameters } : {}),
+        },
     } as unknown as Tool;
 };
 

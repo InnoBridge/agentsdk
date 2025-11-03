@@ -25,6 +25,11 @@ const array = (value: SchemaValue): ArraySchemaValue => {
     };
 };
 
+enum StructuredOutputType {
+    DTO,
+    TOOL
+};
+
 type EnumProp = {
     type?: string;
     description?: string;
@@ -57,13 +62,15 @@ const enumToSchema = (enumProp: EnumProp): EnumSchema => {
     return schema;
 };
 
-type SchemaDefinition = {
+interface SchemaDefinition {
     type: string;
     name: string;
     description: string;
     properties: Record<string, SchemaValue>;
     required: string[];
     additionalProperties?: boolean;
+    strict?: boolean;
+    allowNoSchema?: boolean;
 };
 
 type Repair = {
@@ -82,14 +89,13 @@ type ValidatedResult = {
     repairs?: Repair[];
 };
 
-export {
-    JsonSchema,
-    SchemaDefinition,
-    ValidatedResult,
-    Repair,
-    array,
-    enumToSchema,
-    SchemaValue,
-    EnumProp,
-    EnumSchema,
-}
+export { JsonSchema, StructuredOutputType, array, enumToSchema };
+export type {
+  SchemaDefinition,
+  ValidatedResult,
+  Repair,
+  SchemaValue,
+  EnumProp,
+  EnumSchema,
+};
+

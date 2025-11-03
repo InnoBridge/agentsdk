@@ -1,4 +1,4 @@
-import type { SchemaDefinition, SchemaValue } from "@/models/structured_output";
+import { SchemaDefinition, SchemaValue, StructuredOutputType } from "@/models/structured_output";
 import type { StructuredOutput } from "@/tools/structured_output";
 
 export type JsonSchema = Record<string, unknown>;
@@ -17,7 +17,8 @@ type ResolveDto = (name: string) => typeof StructuredOutput | undefined;
 
 const buildJSONFromSchema = (
     schemaDefinition: SchemaDefinition,
-    resolveStructuredSchema: ResolveStructuredSchema
+    resolveStructuredSchema: ResolveStructuredSchema,
+    structuredOutputType: StructuredOutputType
 ): JsonSchema => {
     const jsonSchema: JsonSchema = {
         type: schemaDefinition.type,
@@ -25,11 +26,18 @@ const buildJSONFromSchema = (
         description: schemaDefinition.description,
         properties: {},
         required: schemaDefinition.required,
-        additionalProperties: schemaDefinition.additionalProperties ?? false,
+        ...(schemaDefinition.additionalProperties !== undefined
+            ? { additionalProperties: schemaDefinition.additionalProperties }
+            : {}),
+        ...(schemaDefinition.strict !== undefined ? { strict: schemaDefinition.strict } : {}),
+        ...(schemaDefinition.allowNoSchema !== undefined
+            ? { allowNoSchema: schemaDefinition.allowNoSchema }
+            : {}),
     };
-
+    
     const properties = buildPropertySchema(schemaDefinition.properties, resolveStructuredSchema);
     jsonSchema.properties = properties;
+
     return jsonSchema;
 };
 
