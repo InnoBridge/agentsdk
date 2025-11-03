@@ -33,10 +33,12 @@ function DTO(schemaDefinition: SchemaDefinition) {
     return BaseStructuredOutput(schemaDefinition);
 }
 
-function BaseStructuredOutput(schemaDefinition: SchemaDefinition, structuredOutputType: StructuredOutputType = StructuredOutputType.DTO) {
+function BaseStructuredOutput(schemaDefinition: SchemaDefinition, structuredOutputType: StructuredOutputType = StructuredOutputType.DTO) {    
     if (structuredOutputType === StructuredOutputType.DTO) {
         const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & StructuredOutput) & { getSchema?: () => SchemaDefinition | undefined } => {
-
+            if (schemaDefinition.name === undefined) {
+                schemaDefinition.name = Target.name;
+            }
             // Create a new class that extends StructuredOutput
             const Decorated = class extends StructuredOutput {
                 constructor(...args: any[]) {
@@ -89,7 +91,9 @@ function BaseStructuredOutput(schemaDefinition: SchemaDefinition, structuredOutp
         return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
     } else if (structuredOutputType === StructuredOutputType.TOOL) {
         const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & ToolComponent) & { getSchema?: () => SchemaDefinition | undefined } => {
-
+            if (schemaDefinition.name === undefined) {
+                schemaDefinition.name = Target.name;
+            }
             // Create a new class that extends ToolComponent
             const Decorated = class extends ToolComponent {
                 constructor(...args: any[]) {

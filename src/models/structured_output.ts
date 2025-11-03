@@ -64,7 +64,7 @@ const enumToSchema = (enumProp: EnumProp): EnumSchema => {
 
 interface SchemaDefinition {
     type: string;
-    name: string;
+    name?: string;
     description: string;
     properties: Record<string, SchemaValue>;
     required: string[];

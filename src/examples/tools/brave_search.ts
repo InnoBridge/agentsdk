@@ -5,7 +5,6 @@ import { BraveSearchClient, SearchOutput } from './brave_search_client';
 
 @Tool({
     type: 'function',
-    name: 'brave_search',
     description: 'Run a Brave search and return top results',
     properties: {
         query: {

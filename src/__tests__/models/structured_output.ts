@@ -3,7 +3,6 @@ import { array, enumToSchema } from '@/models/structured_output';
 
 @DTO({
 	type: 'object',
-	name: 'Step',
 	description: 'Represents a single step in the reasoning process.',
 	properties: {
 		explanation: { type: 'string' },
@@ -23,7 +22,6 @@ class Step {
 
 @DTO({
 	type: 'object',
-	name: 'Metadata',
 	description: 'Represents provenance metadata about a reasoning trace.',
 	properties: {
 		source: { type: 'string' },
@@ -43,7 +41,6 @@ class Metadata {
 
 @DTO({
 	type: 'object',
-	name: 'ReasoningSummary',
 	description: 'Aggregates reasoning steps with summary metadata and tags.',
 	properties: {
 		steps: array(Step),
@@ -66,7 +63,6 @@ class ReasoningSummary {
 
 @DTO({
 	type: 'object',
-	name: 'MathReasoning',
 	description: 'Represents the step-by-step reasoning process for solving a math problem.',
 	properties: {
 		steps: array(Step),
@@ -93,7 +89,6 @@ interface ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'AdditionOperation',
 	description: 'Represents an ordered addition operation.',
 	properties: {
 		order: { 
@@ -135,7 +130,6 @@ class AdditionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'SubtractionOperation',
 	description: 'Represents an ordered subtraction operation.',
 	properties: {
 		order: { type: 'number' },
@@ -171,7 +165,6 @@ class SubtractionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'MultiplicationOperation',
 	description: 'Represents an ordered multiplication operation.',
 	properties: {
 		order: { type: 'number' },
@@ -207,7 +200,6 @@ class MultiplicationOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'DivisionOperation',
 	description: 'Represents an ordered division operation.',
 	properties: {
 		order: { type: 'number' },
@@ -243,7 +235,6 @@ class DivisionOperation implements ArithmeticOperation {
 
 @DTO({
 	type: 'object',
-	name: 'ArithmeticOperations',
 	description: 'Represents a sequence of ordered arithmetic operations.',
 	properties: {
 		additionOperations: array(AdditionOperation),
@@ -291,7 +282,6 @@ class ArithmeticOperations {
 
 @DTO({
 	type: 'object',
-	name: 'Address',
 	description: 'Street-level address information.',
 	properties: {
 		line1: { type: 'string' },
@@ -330,7 +320,6 @@ class Address {
 
 @DTO({
 	type: 'object',
-	name: 'UserProfile',
 	description: 'Represents a fully hydrated user profile with nested addresses.',
 	properties: {
 		id: {
@@ -382,7 +371,6 @@ enum TemperatureUnit {
 
 @DTO({
 	type: 'object',
-	name: 'TelemetryReading',
 	description: 'Captures sensor telemetry with coercible primitives.',
 	properties: {
 		deviceId: { type: 'string' },

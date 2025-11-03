@@ -11,7 +11,6 @@ enum TemperatureUnit {
 
 @Tool({
 	type: "function",
-	name: "get_current_weather",
 	description: "Get the current weather for a given location",
 	properties: {
 		location: {
