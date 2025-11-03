@@ -1,5 +1,5 @@
 import { SchemaDefinition, SchemaValue, StructuredOutputType } from "@/models/structured_output";
-import type { StructuredOutput } from "@/tools/structured_output";
+import type { StructuredOutput } from "@/models/structured_output";
 
 export type JsonSchema = Record<string, unknown>;
 export type HydrationRecipe = Record<string, unknown>;

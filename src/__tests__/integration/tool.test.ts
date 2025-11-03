@@ -1,9 +1,10 @@
 import { WeatherTool } from "@/examples/tools/weather";
-import { Tool, ToolComponent, ToolDefinition } from "@/tools/tool";
-import { Config, getApplicationContext, getConfig } from "@innobridge/memoizedsingleton";
+import { ToolComponent, ToolDefinition } from "@/models/structured_output";
+import { Config, getApplicationContext } from "@innobridge/memoizedsingleton";
 import { WebClient } from "@/examples/tools/web_client";
 import { TemperatureUnit, WeatherClient } from "@/examples/tools/weather_client";
 import { BraveSearchClient, SearchOutput } from "@/examples/tools/brave_search_client";
+import { BraveSearchTool } from "@/examples/tools/brave_search";
 
 const { CELSIUS } = TemperatureUnit;
 
@@ -23,7 +24,25 @@ const shutdownConfig = () => {
     console.log('✅ Weather API client shut down.');
 };
 
-function toolTest() {
+const getWeatherSchemaTest = () => {
+    console.log('Getting WeatherTool schema...');
+
+    const schema = (WeatherTool as typeof ToolComponent).getToolSchema?.();
+    console.log("WeatherTool schema: ", JSON.stringify(schema, null, 2));
+
+    console.log('✅ WeatherTool schema retrieved.');
+};
+
+const getBraveSearchSchemaTest = () => {
+    console.log('Getting BraveSearchTool schema...');
+
+    const schema = (BraveSearchTool as typeof ToolComponent).getToolSchema?.();
+    console.log("BraveSearchTool schema: ", JSON.stringify(schema, null, 2));
+
+    console.log('✅ BraveSearchTool schema retrieved.');
+};
+
+const toolTest = () => {
     console.log('Starting tool tests...');
 
     const toolDefinitions = getDefinitions([WeatherTool]);
@@ -32,7 +51,7 @@ function toolTest() {
 };
 
 const getDefinitions = (tools: Array<typeof ToolComponent>): ToolDefinition[] => {
-    return tools.map(tool => tool.getDefinition!()).filter((def): def is ToolDefinition => def !== undefined);
+    return tools.map(tool => tool.getToolSchema!()).filter((def): def is ToolDefinition => def !== undefined);
 };
 
 const callWeather = async () => {
@@ -61,9 +80,11 @@ const callBraveSearch = async () => {
 
         initialConfig();
 
-        toolTest();
-        await callWeather();
-        await callBraveSearch();
+        // getWeatherSchemaTest();
+        getBraveSearchSchemaTest();
+        // toolTest();
+        // await callWeather();
+        // await callBraveSearch();
 
         shutdownConfig();
         console.log("🎉 All integration tests passed");

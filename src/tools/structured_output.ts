@@ -1,8 +1,15 @@
 import Ajv from "ajv";
-import { JsonSchema, SchemaDefinition, Repair, ValidatedResult, StructuredOutputType } from "@/models/structured_output";
+import { 
+    JsonSchema, 
+    SchemaDefinition,
+    Repair, 
+    ValidatedResult,
+    StructuredOutput, 
+    StructuredOutputType,
+    ToolComponent
+} from "@/models/structured_output";
 import { copyPrototypeChain } from "@/utils/prototype_helper";
 import { buildJSONFromSchema, hydrateWithConstructor, HydrationRecipe, StoredSchema } from "@/utils/structured_output_helper";
-import { ToolComponent } from "./tool";
 
 const ajv = new Ajv({ allErrors: true, strict: false });
 
@@ -148,17 +155,6 @@ function BaseStructuredOutput(schemaDefinition: SchemaDefinition, structuredOutp
     throw new Error(`Unsupported StructuredOutputType: ${structuredOutputType}`);
 }
 
-class StructuredOutput {
-    constructor(..._args: any[]) {
-    }
-
-    static getSchema?: () => JsonSchema | undefined;
-
-    static validate?: (originalHydrationRecipe: unknown, previousRepairs?: Repair[]) => ValidatedResult;
-
-    static hydrate?: (hydrationRecipe: unknown) => StructuredOutput | undefined;
-}
-
 // Attach the runtime implementation for StructuredOutput.getSchema()
 StructuredOutput.getSchema = function() {
     return (this as any)[schemaMetadata] as JsonSchema | undefined;
@@ -216,7 +212,6 @@ StructuredOutput.hydrate = function (hydrationRecipe: unknown): StructuredOutput
 };
 
 export {
-    StructuredOutput,
     BaseStructuredOutput,
     DTO,
     getRegisteredDto

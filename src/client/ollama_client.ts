@@ -1,8 +1,8 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import { StructuredOutputValidationError, type LLMClient } from '@/client/llmclient';
-import { ToolComponent, JsonSchema } from "@/tools/tool";
-import { StructuredOutput } from "@/tools/structured_output";
+import { JsonSchema } from "@/tools/tool";
+import { StructuredOutput, ToolComponent } from "@/models/structured_output";
 
 @Singleton
 class OllamaClient extends SingletonComponent implements LLMClient {

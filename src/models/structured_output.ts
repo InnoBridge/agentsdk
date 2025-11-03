@@ -1,5 +1,4 @@
 import type { ErrorObject } from "ajv";
-import type { StructuredOutput } from "@/tools/structured_output";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -89,7 +88,51 @@ type ValidatedResult = {
     repairs?: Repair[];
 };
 
-export { JsonSchema, StructuredOutputType, array, enumToSchema };
+class StructuredOutput {
+    constructor(..._args: any[]) {
+    }
+
+    static getSchema?: () => JsonSchema | undefined;
+
+    static validate?: (originalHydrationRecipe: unknown, previousRepairs?: Repair[]) => ValidatedResult;
+
+    static hydrate?: (hydrationRecipe: unknown) => StructuredOutput | undefined;
+}
+
+class ToolComponent extends StructuredOutput {
+
+    static getToolSchema?: () => ToolDefinition | undefined;
+   
+    async run(params?: unknown): Promise<unknown> {
+        // Base implementation is a no-op; concrete tools should override.
+        return undefined;
+    }
+}
+
+interface ToolDefinition {
+    name?: string;
+    description?: string;
+    type?: string;
+    parameters?: {
+        type?: string;
+        items?: any;
+        properties?: JsonSchema;
+        required?: string[];
+        additionalProperties?: boolean;
+    };
+    strict?: boolean;
+};
+
+
+export { 
+    JsonSchema, 
+    StructuredOutputType, 
+    array, 
+    enumToSchema,
+    ToolDefinition,
+    StructuredOutput,
+    ToolComponent
+};
 export type {
   SchemaDefinition,
   ValidatedResult,

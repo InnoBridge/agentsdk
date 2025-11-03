@@ -17,8 +17,7 @@ import {
     UserProfile,
     TelemetryReading,
 } from '@/__tests__/models/structured_output';
-import { StructuredOutput } from '@/tools/structured_output';
-import { ToolComponent } from '@/tools/tool';
+import { StructuredOutput, ToolComponent } from '@/models/structured_output';
 
 class TestLLMClients {
     @Insert(OllamaClient)
