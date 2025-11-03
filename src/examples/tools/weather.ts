@@ -21,7 +21,7 @@ enum TemperatureUnit {
 		unit: enumToSchema(
             {
 		    	type: "string",
-			    enum: Object.values(TemperatureUnit),
+			    enum: TemperatureUnit,
 			    description: "The temperature unit to return the weather in (C or F)"
 		    }
         ),

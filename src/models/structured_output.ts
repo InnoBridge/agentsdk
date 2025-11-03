@@ -33,7 +33,7 @@ enum StructuredOutputType {
 type EnumProp = {
     type?: string;
     description?: string;
-    enum: unknown[];
+    enum: unknown;
 };
 
 type EnumSchema = JsonSchema & {
@@ -43,12 +43,12 @@ type EnumSchema = JsonSchema & {
 };
 
 const enumToSchema = (enumProp: EnumProp): EnumSchema => {
-    if (!Array.isArray(enumProp.enum) || enumProp.enum.length === 0) {
-        throw new Error("Enum values must be a non-empty array");
-    }
+    const values = Array.isArray(enumProp.enum)
+        ? (enumProp.enum as unknown[])
+        : Object.values(enumProp.enum as Record<string, unknown>);
 
     const schema: EnumSchema = {
-        enum: [...enumProp.enum],
+        enum: values,
     };
 
     if (enumProp.type !== undefined) {

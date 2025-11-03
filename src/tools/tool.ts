@@ -1,6 +1,5 @@
 import { StructuredOutputType, SchemaDefinition } from "@/models/structured_output";
 import { BaseStructuredOutput, StructuredOutput } from "@/tools/structured_output";
-import { J } from "vitest/dist/chunks/environment.d.Dmw5ulng.js";
 
 type JsonSchema = Record<string, unknown>;
 
