@@ -1,114 +1,65 @@
+import { 
+    StructuredOutputType, 
+    SchemaDefinition, 
+    ToolComponent, 
+    ToolDefinition
+} from "@/models/structured_output";
+import { BaseStructuredOutput } from "@/tools/structured_output";
+
 type JsonSchema = Record<string, unknown>;
 
-import { copyPrototypeChain } from "../utils/prototype_helper";
-
-interface ToolDefinition {
-    type: "function";
-    name: string;
-    description?: string;
-    parameters?: JsonSchema;
-    allowNoSchema?: boolean;
-    strict?: boolean;
+function Tool(schemaDefinition: SchemaDefinition) {
+    return BaseStructuredOutput(schemaDefinition, StructuredOutputType.TOOL);
 }
 
-function Tool(toolDefinition: ToolDefinition) {
-    const decorate = <T extends new (...args: any[]) => any>(Target: T): (new (...args: ConstructorParameters<T>) => InstanceType<T> & ToolComponent) & { getDefinition?: () => ToolDefinition | undefined } => {
-        // Create a new class that extends ToolComponent
-        const Decorated = class extends ToolComponent {
-            constructor(...args: any[]) {
-                super(...args);
+ToolComponent.getToolSchema = function() {
+    const schema = (this as typeof ToolComponent).getSchema?.();
+    if (typeof schema !== 'object' || !schema) return undefined;
+    
+    const toolType = (schema as { toolType?: string }).toolType ?? 'object';
+    const name = (schema as { name?: string }).name;
+    if (!name) return undefined;
 
-                const instance = Reflect.construct(Target, args, new.target);
-                Object.assign(this, instance);
-            }
-        };
+    const description = (schema as { description?: string }).description;
+    const properties = (schema as { properties?: Record<string, JsonSchema> }).properties;
+    const directProperties =
+        properties ?? (Object.keys(schema).length > 0 ? (schema as Record<string, JsonSchema>) : undefined);
 
-        // Set the class name to match the original Target
-        Object.defineProperty(Decorated, 'name', {
-            value: Target.name,
-            writable: false,
-            configurable: true
-        });
-
-        copyPrototypeChain(Target.prototype, Decorated.prototype, ToolComponent.prototype);
-
-        // Attach the canonical tool definition to the decorated class so
-        // ToolComponent.getDefinition() (and other helpers) can read it.
-        try {
-            if (typeof (Reflect as any).defineMetadata === "function") {
-                (Reflect as any).defineMetadata("tool:definition", toolDefinition, Decorated);
-            } else {
-                Object.defineProperty(Decorated, toolMetadata, {
-                    value: toolDefinition,
-                    enumerable: false,
-                    configurable: false,
-                    writable: false,
-                });
-            }
-        } catch (e) {
-            Object.defineProperty(Decorated, toolMetadata, {
-                value: toolDefinition,
-                enumerable: false,
-                configurable: false,
-                writable: false,
-            });
-        }
-
-        // Copy static properties from Target
-        Object.getOwnPropertyNames(Target).forEach(name => {
-            if (['prototype', 'name', 'length'].includes(name)) return;
-            const descriptor = Object.getOwnPropertyDescriptor(Target, name);
-            if (descriptor) {
-                Object.defineProperty(Decorated, name, descriptor);
-            }
-        });
-        
-        return Decorated as unknown as any;
+    const toolDefinition: ToolDefinition = {
+        name,
+        type: toolType,
     };
 
-    return <T extends new (...args: any[]) => any>(Target: T) => decorate(Target) as any;
-}
-
-class ToolComponent {
-    constructor(..._args: any[]) {
+    if (description) {
+        toolDefinition.description = description;
     }
 
-    // Static helper is optional at the type level so plain decorated classes
-    // are still assignable to `typeof ToolComponent` without forcing authors
-    // to declare a static member. We attach an implementation below.
-    static getDefinition?: () => ToolDefinition | undefined;
+    if (directProperties && Object.keys(directProperties).length > 0) {
+        toolDefinition.parameters = {
+            type: 'object',
+            properties: directProperties,
+        };
 
-    // A static hydrator attached to the decorated class. It accepts a provider
-    // tool call (the raw LLM/provider call object) and returns an instantiated
-    // ToolComponent when the arguments validate against the authoritative
-    // ToolDefinition.parameters. Implementations may override this static on
-    // a per-tool basis by providing their own static member; the decorator
-    // will attach a default implementation when absent.
-    static hydrate?: (providerCall?: any) => ToolComponent | undefined;
+        const required = (schema as { required?: string[] }).required;
+        if (Array.isArray(required) && required.length > 0) {
+            toolDefinition.parameters.required = required;
+        }
 
-    // Accept a single untyped/unknown parameter (canonical tool args object)
-    // and return Promise<unknown> so implementations can choose the concrete
-    // return type. Use `unknown` to encourage validation/casting inside tools.
-    async run(params?: unknown): Promise<unknown> {
-        // Base implementation is a no-op; concrete tools should override.
-        return undefined;
+        const additionalProperties = (schema as { additionalProperties?: boolean }).additionalProperties;
+        if (additionalProperties !== undefined) {
+            toolDefinition.parameters.additionalProperties = additionalProperties;
+        }
     }
-}
 
-// Attach the runtime implementation for ToolComponent.getDefinition
-ToolComponent.getDefinition = function () {
-    if (typeof (Reflect as any).getMetadata === "function") {
-        return (Reflect as any).getMetadata("tool:definition", this);
+    const strict = (schema as { strict?: boolean }).strict;
+    if (strict !== undefined) {
+        toolDefinition.strict = strict;
     }
-    return (this as any)[toolMetadata] as ToolDefinition | undefined;
+
+    return toolDefinition;
 };
-
-const toolMetadata = Symbol("tool:definition");
-
 
 export {
     JsonSchema,
-    Tool,
-    ToolComponent,
-    ToolDefinition
+    Tool
  };

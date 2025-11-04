@@ -5,15 +5,14 @@ import { BraveSearchClient, SearchOutput } from './brave_search_client';
 
 @Tool({
     type: 'function',
-    name: 'brave_search',
     description: 'Run a Brave search and return top results',
-    parameters: {
+    properties: {
         query: {
             type: 'string',
             description: 'The search query to run against Brave Search'
         },
-        required: ['query']
-    }
+    },
+    required: ['query']
 })
 class BraveSearchTool {
     private client: WebClient = new BraveSearchClient();
@@ -23,8 +22,9 @@ class BraveSearchTool {
         this.query = query;
     }
 
-    static hydrate = (toolCall: ToolCall): BraveSearchTool | undefined => {
+    static hydrate = (hydrationRecipe: unknown): BraveSearchTool | undefined => {
         try {
+            const toolCall = hydrationRecipe as ToolCall;
             console.log('Hydrating BraveSearchTool from tool call:', toolCall);
             const { query } = toolCall.function.arguments;
             return new BraveSearchTool(query);

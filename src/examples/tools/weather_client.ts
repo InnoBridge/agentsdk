@@ -1,5 +1,5 @@
 import axios, { AxiosInstance } from "axios";
-import { getConfig, Singleton } from "@innobridge/memoizedsingleton";
+import { getConfig } from "@innobridge/memoizedsingleton";
 import { WebClient } from '@/examples/tools/web_client';
 
 interface WeatherInput {

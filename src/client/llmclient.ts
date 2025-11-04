@@ -1,6 +1,4 @@
-import { ValidatedResult } from "@/models/structured_output";
-import { StructuredOutput } from "@/tools/structured_output";
-import { ToolComponent } from "@/tools/tool";
+import { ValidatedResult, StructuredOutput, ToolComponent } from "@/models/structured_output";
 
 class StructuredOutputValidationError extends Error {
     validationResult: ValidatedResult | undefined;

@@ -1,4 +1,4 @@
-import { StructuredOutput } from '@/tools/structured_output';
+import { StructuredOutput } from '@/models/structured_output';
 import { JSONSchema } from 'openai/lib/jsonschema.js';
 import {
     Step,

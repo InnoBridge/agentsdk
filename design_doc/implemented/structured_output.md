@@ -48,7 +48,7 @@ External layers—such as [`OllamaClient.toStructuredOutput`](../../src/client/o
 
 ## Declaring a DTO
 Use the `@DTO` annotation and extend `StructuredOutput`.  
-The decorator stores schema metadata and registers the class so nested references can be resolved later.
+If you omit the `name` field in the schema definition, the decorator automatically falls back to the class constructor’s name, so specifying it is optional. The decorator stores schema metadata and registers the class so nested references can be resolved later.
 
 ```ts
 import { DTO, StructuredOutput } from "@/tools/structured_output";
@@ -56,7 +56,6 @@ import { array, enum as enumSchema } from "@/models/structured_output";
 
 @DTO({
     type: "object",
-    name: "AdditionOperation",
     description: "Represents an addition operation.",
     properties: {
         operand1: { type: "number", description: "First operand." },
@@ -72,7 +71,6 @@ class AdditionOperation extends StructuredOutput {
 
 @DTO({
     type: "object",
-    name: "ArithmeticOperations",
     description: "A bundle of operations and a semantic summary.",
     properties: {
         arithmeticOperations: array(AdditionOperation), // array helper
@@ -111,14 +109,13 @@ enum TemperatureUnit {
 
 @DTO({
     type: "object",
-    name: "TemperatureReading",
     description: "DTO representing a temperature measurement with an explicit unit.",
     properties: {
         temperature: { type: "number", description: "Numeric temperature reading." },
         temperatureUnit: enumSchema({
             type: "string",
             description: "Unit associated with the reading.",
-            enum: Object.values(TemperatureUnit),
+            enum: TemperatureUnit,
         }),
     },
     required: ["temperature", "temperatureUnit"],

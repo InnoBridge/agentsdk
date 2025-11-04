@@ -1,8 +1,7 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import { StructuredOutputValidationError, type LLMClient } from '@/client/llmclient';
-import { ToolComponent, ToolDefinition, JsonSchema } from "@/tools/tool";
-import { StructuredOutput } from "@/tools/structured_output";
+import { StructuredOutput, ToolComponent } from "@/models/structured_output";
 
 @Singleton
 class OllamaClient extends SingletonComponent implements LLMClient {
@@ -32,31 +31,47 @@ class OllamaClient extends SingletonComponent implements LLMClient {
 
     async toolCall(input: ChatRequest, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]> {
         const toolNameToolComponentMap = new Map<string, typeof ToolComponent>();
+
         tools.forEach(tool => {
-            const name = tool.getDefinition?.()?.name;
+            const schema = tool.getSchema?.();
+            const name = (schema as { name?: string } | undefined)?.name;
             if (name) {
                 toolNameToolComponentMap.set(name, tool);
             }
         });
         const toolParams = tools
             .map(tool => {
-                const def = tool.getDefinition?.();
-                if (def) {
-                    return mapToolDefinitionToTool(def);
+                const schema = tool.getToolSchema?.();
+                if (schema) {
+                    return {
+                        type: (schema as { toolType?: string }).toolType ?? 'function',
+                        function: schema
+                    }
                 }
                 return undefined;
             })
             .filter((def): def is Tool => def !== undefined);
-
+    
         input.tools = toolParams;
         const result = await this.chat({ ...input, stream: false });
+
         const toolCalls: ToolComponent[] = result.message.tool_calls
             ? result.message.tool_calls.map(toolCall => {
                 const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
-                return toolComponent?.hydrate?.(toolCall);
+                if (toolComponent) {
+                    const validationResult = toolComponent.validate?.(toolCall.function.arguments);
+                    if (validationResult && validationResult.valid) {
+                        return toolComponent?.hydrate?.(toolCall);
+                    } else {
+                        console.error(`Tool call validation failed for: ${toolCall.function.name}`);
+                    }
+                } else {
+                    console.error(`No tool component found for tool call: ${toolCall.function.name}`);
+                }
             }).filter((tc): tc is ToolComponent => tc !== undefined)
             : [];
         return toolCalls;
+
     };
 
     async toStructuredOutput<T extends typeof StructuredOutput>(
@@ -80,12 +95,10 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         let validationResult = dto.validate?.(hydrationRecipe);
 
         if (validationResult?.valid) {
-            console.log("valid");
             return dto.hydrate?.(hydrationRecipe) as InstanceType<T>;
         }
 
         for (let attempt = 0; attempt < retries; attempt++) {
-            console.log(`Validation failed. Attempting to repair structured output (Attempt ${attempt + 1}/${retries})...`);
             const messages = request.messages || [];
             messages.push({
                 role: 'system',
@@ -127,40 +140,6 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         super.stop();
     };
     
-};
-
-interface OllamaToolParameters {
-    type?: string;
-    $defs?: any;
-    items?: any;
-    required?: string[];
-    properties?: {
-        [key: string]: {
-            type?: string | string[];
-            items?: any;
-            description?: string;
-            enum?: any[];
-        };
-    };
-}
-
-const mapParameterJsonSchemaToOllamaToolParameter = (schema?: JsonSchema): OllamaToolParameters | undefined => {
-    if (!schema) return undefined;
-    // Ollama's Tool.parameters expects a JSON Schema-like object. We keep a
-    // shallow mapping here to preserve the canonical schema shape while
-    // allowing future provider-specific transformations.
-    return schema as unknown as OllamaToolParameters;
-};
-
-const mapToolDefinitionToTool = (def: ToolDefinition): Tool => {
-    return {
-        type: def.type,
-        function: {
-            name: def.name,
-            description: def.description,
-            parameters: mapParameterJsonSchemaToOllamaToolParameter(def.parameters),
-        }
-    } as unknown as Tool;
 };
 
 export {

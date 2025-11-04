@@ -1,5 +1,4 @@
 import type { ErrorObject } from "ajv";
-import type { StructuredOutput } from "@/tools/structured_output";
 
 type JsonSchema = Record<string, unknown>;
 
@@ -25,10 +24,15 @@ const array = (value: SchemaValue): ArraySchemaValue => {
     };
 };
 
+enum StructuredOutputType {
+    DTO,
+    TOOL
+};
+
 type EnumProp = {
     type?: string;
     description?: string;
-    enum: unknown[];
+    enum: unknown;
 };
 
 type EnumSchema = JsonSchema & {
@@ -38,12 +42,12 @@ type EnumSchema = JsonSchema & {
 };
 
 const enumToSchema = (enumProp: EnumProp): EnumSchema => {
-    if (!Array.isArray(enumProp.enum) || enumProp.enum.length === 0) {
-        throw new Error("Enum values must be a non-empty array");
-    }
+    const values = Array.isArray(enumProp.enum)
+        ? (enumProp.enum as unknown[])
+        : Object.values(enumProp.enum as Record<string, unknown>);
 
     const schema: EnumSchema = {
-        enum: [...enumProp.enum],
+        enum: values,
     };
 
     if (enumProp.type !== undefined) {
@@ -57,13 +61,15 @@ const enumToSchema = (enumProp: EnumProp): EnumSchema => {
     return schema;
 };
 
-type SchemaDefinition = {
+interface SchemaDefinition {
     type: string;
-    name: string;
+    name?: string;
     description: string;
     properties: Record<string, SchemaValue>;
     required: string[];
     additionalProperties?: boolean;
+    strict?: boolean;
+    allowNoSchema?: boolean;
 };
 
 type Repair = {
@@ -82,14 +88,57 @@ type ValidatedResult = {
     repairs?: Repair[];
 };
 
-export {
-    JsonSchema,
-    SchemaDefinition,
-    ValidatedResult,
-    Repair,
-    array,
-    enumToSchema,
-    SchemaValue,
-    EnumProp,
-    EnumSchema,
+class StructuredOutput {
+    constructor(..._args: any[]) {
+    }
+
+    static getSchema?: () => JsonSchema | undefined;
+
+    static validate?: (originalHydrationRecipe: unknown, previousRepairs?: Repair[]) => ValidatedResult;
+
+    static hydrate?: (hydrationRecipe: unknown) => StructuredOutput | undefined;
 }
+
+class ToolComponent extends StructuredOutput {
+
+    static getToolSchema?: () => ToolDefinition | undefined;
+   
+    async run(params?: unknown): Promise<unknown> {
+        // Base implementation is a no-op; concrete tools should override.
+        return undefined;
+    }
+}
+
+interface ToolDefinition {
+    name?: string;
+    description?: string;
+    type?: string;
+    parameters?: {
+        type?: string;
+        items?: any;
+        properties?: JsonSchema;
+        required?: string[];
+        additionalProperties?: boolean;
+    };
+    strict?: boolean;
+};
+
+
+export { 
+    JsonSchema, 
+    StructuredOutputType, 
+    array, 
+    enumToSchema,
+    ToolDefinition,
+    StructuredOutput,
+    ToolComponent
+};
+export type {
+  SchemaDefinition,
+  ValidatedResult,
+  Repair,
+  SchemaValue,
+  EnumProp,
+  EnumSchema,
+};
+

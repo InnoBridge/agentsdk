@@ -1,28 +1,54 @@
 ## Tools
 
-Tools give the agent a deterministic runtime mechanism to execute code at its disposal.
+Tools give the agent a deterministic runtime mechanism to execute code at its disposal. The implementation intentionally piggybacks on the structured-output runtime: `ToolComponent` inherits `StructuredOutput`, so every tool automatically exposes the same `getSchema()`, `validate()`, and `hydrate()` helpers that DTOs use. On top of that shared base we layer the tool-specific `run()` execution hook.
+
+### Architecture
+
+```
+┌──────────────────────┐        ┌────────────────────────┐
+│  @Tool Decorator     │ ─────▶ │  ToolComponent (SO)    │
+│  (wrap class)        │        │  inherits StructuredOutput
+└─────────┬────────────┘        └─────────┬──────────────┘
+          │                                │
+          ▼                                ▼
+┌──────────────────────┐        ┌────────────────────────┐
+│  Schema Metadata     │ ◀────┐ │  Runtime Hooks         │
+│  (reuse getSchema)   │      │ │  validate / hydrate    │
+└─────────┬────────────┘      │ └─────────┬──────────────┘
+          │                   │           │
+          ▼                   │           ▼
+┌──────────────────────┐      │  ┌──────────────────────┐
+│  Provider Adapters   │──────┘  │  async run()         │
+│  (Ollama, etc.)      │         │  tool logic          │
+└──────────────────────┘         └──────────────────────┘
+```
+
+- **@Tool decorator** clones the user class, wraps it with `ToolComponent`, and preserves methods/static members so execution logic stays untouched.
+- **ToolComponent** is `StructuredOutput` plus the `run()` contract, so tools reuse the DTO pipeline for schema caching, validation, and hydration.
+- **Schema metadata** lives on the decorated class (same symbol slot as structured output); provider adapters call `getSchema()` / `validate()` / `hydrate()` exactly the same way they do for DTOs.
+- **Provider adapters** translate the authoritative `ToolDefinition` into provider-specific payloads and drive the lifecycle: translate → call model → hydrate → `run()`.
 
 ### Building blocks in the codebase
 
 - **[`@Tool`](../../src/tools/tool.ts) decorator**
-  - Returns a runtime subclass of `ToolComponent`. The `@Tool` decorator synthesizes a runtime subclass that extends `ToolComponent`, so authors don't need to explicitly extend `ToolComponent` themselves. It invokes the original constructor, copies prototype methods, and preserves static members so decorated classes keep their behavior plus the runtime hooks.
-  - Concrete runtime hooks provided (what "runtime hooks" means in practice):
-    1. Static metadata accessor: `static getDefinition()` and the internal `toolMetadata` symbol slot — used for provider translation, auditing, and registries.
-    2. Constructor/instantiation contract: decorator-synthesized subclass accepts the validated argument object as the instance input (used during hydrate → instantiate).
-    3. Standard entrypoint: `async run(params?: unknown): Promise<unknown>` — the agreed execution method orchestrators call on hydrated instances.
-    4. Validator attachment point (pluggable): a compiled validator can be attached at decoration or hydration time and invoked during parse→validate→instantiate.
-    5. Policy & provenance hooks: stored definition and optional annotations (e.g., `allowNoSchema`, capability tags) are readable at runtime for safety checks, logging, and UI traces.
-    6. Provider mapping link: provider clients map definitions to provider tool IDs; that mapping is captured at runtime to correlate provider `tool_call`s back to the class during hydration.
-  - Attaches the authoritative definition to the decorated class using a symbol-backed metadata slot (`toolMetadata`). The implementation prefers `Reflect.defineMetadata` / `Reflect.getMetadata` when available (for environments that include the `reflect-metadata` polyfill), but falls back to writing the definition to a well-known Symbol property on the class when `Reflect` metadata isn't present. This avoids forcing a `reflect-metadata` dependency while still supporting environments that use it.
+  - Returns a runtime subclass of `ToolComponent`. The decorator reuses the structured-output machinery in [`BaseStructuredOutput`](../../src/tools/structured_output.ts) to wrap the user-supplied class, so the decorated class inherits `getSchema()`, `validate()`, and `hydrate()` from `StructuredOutput` in addition to the tool-specific `run()` method.
+  - Concrete runtime hooks provided:
+    1. Static metadata accessor: `static getToolSchema()` backed by the same `schemaMetadata` symbol used for DTOs — the single source of truth consumed by provider adapters, registries, and audits.
+    2. Constructor contract: decorator-synthesised subclass accepts a validated argument object that matches the JSON Schema returned by `getSchema()`.
+    3. Execution entrypoint: `async run(params?: unknown): Promise<unknown>` — orchestrators invoke this after hydration.
+    4. Validation surface: tools inherit `validate()` from `StructuredOutput`, so providers can call `toolClass.validate(arguments)` before instantiation.
+    5. Hydration surface: tools inherit `hydrate()` which delegates to the shared constructor hydrator (handling nested DTOs, arrays, etc.).
+    6. Policy/provenance hooks: the stored metadata (including optional flags such as `strict`) is available for auditing and safety checks.
+  - Metadata storage uses a dedicated symbol on the constructor (and `Reflect.defineMetadata` when available) so definitions remain non-enumerable and resistant to accidental overwrite.
 
   Why this design:
   - Symbols are non-enumerable and won't collide with user-defined properties on the class or instance. Storing the definition on a Symbol keeps the runtime slot private and resilient to accidental overwrites.
 
     Reading the definition (recommended):
-    - The decorator exposes a stable accessor `static getDefinition()` on the decorated class. Consumers should call that method to retrieve the authoritative `ToolDefinition` rather than reading private fields directly. Example:
+    - The decorator exposes a stable accessor `static getToolSchema()` on the decorated class. Consumers should call that method to retrieve the authoritative `ToolDefinition` rather than reading private fields directly. Example:
 
       ```ts
-      const def = MyTool.getDefinition?.();
+      const def = MyTool.getToolSchema?.();
       if (def) {
         // use def for translation/validation/audit
       }
@@ -32,7 +58,7 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
     - The codebase creates a unique symbol (e.g. `const toolMetadata = Symbol('tool:definition')`) and uses it as the fallback storage key: `(Decorated as any)[toolMetadata] = toolDefinition`.
     - When `Reflect.defineMetadata` exists the decorator will call it as `Reflect.defineMetadata('tool:definition', toolDefinition, Decorated)` so other metadata-aware libraries can see it.
     - The decorator should freeze the stored definition (e.g., `Object.freeze(toolDefinition)`) to prevent accidental runtime mutation. Registries that need to annotate or cache derived data should keep separate maps instead of mutating the definition.
-    - Avoid serializing class-level metadata into JSON. If you need to persist metadata, read it via `getDefinition()` and serialize the returned object explicitly; do not attempt to serialize the class itself.
+    - Avoid serializing class-level metadata into JSON. If you need to persist metadata, read it via `getToolSchema()` and serialize the returned object explicitly; do not attempt to serialize the class itself.
     - If you attach additional runtime artifacts (compiled validators, precomputed scorers), prefer attaching them to the same symbol slot as separate properties (for example `{ definition, validator }`) or store them in an external WeakMap keyed by the class to avoid accidental exposure or serialization.
 
   Security and bundling implications:
@@ -42,22 +68,29 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   - Registries and clients should read the stored definition via the decorator's documented accessor (see the `@Tool` section above) rather than reaching into internals.
 
   ```ts
+  import { enumToSchema } from "@/models/structured_output";
+
+  enum TemperatureUnit {
+    CELSIUS = "C",
+    FAHRENHEIT = "F",
+  }
+
   @Tool({
     type: "function",
     name: "get_current_weather",
     description: "Get the current weather for a given location",
     parameters: {
-        location: {
-            type: "string",
-            description: "The name of the city e.g. San Francisco, CA"
-        },
-        format: {
-            type: "string",
-            enum: ["celsius", "fahrenheit"],
-            description: "The format to return the weather in"
-        },
-        required: ["location", "format"]
-    }
+      location: {
+        type: "string",
+        description: "The name of the city e.g. San Francisco, CA",
+      },
+      unit: enumToSchema({
+        type: "string",
+        enum: TemperatureUnit,
+        description: "The temperature unit to return the weather in (C or F)",
+      }),
+    },
+    required: ["location", "unit"],
   })
   class WeatherTool {
     // Implement the tool's functionality here
@@ -74,25 +107,28 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   - Implementations must override `async run(params?: unknown): Promise<unknown>`; the base implementation is a no-op that returns `undefined`. Using `unknown` encourages each tool to validate or narrow the payload before use.
   - See the `@Tool` decorator section above for details on retrieving the stored `ToolDefinition`.
 
-  The authoritative `ToolComponent` implementation lives in `src/tools/tool.ts`; for reference the exported type and basic runtime look like:
+  The authoritative `ToolComponent` implementation lives in `src/models/structured_output.ts`; for reference the exported type and basic runtime look like:
 
   ```ts
-  // from src/tools/tool.ts
+  // from src/models/structured_output.ts
   type JsonSchema = Record<string, unknown>;
 
   interface ToolDefinition {
-    type: "function";
-    name: string;
+    name?: string;
     description?: string;
-    parameters?: JsonSchema;
-    allowNoSchema?: boolean;
+    type?: string;
+    parameters?: {
+      type?: string;
+      items?: unknown;
+      properties?: JsonSchema;
+      required?: string[];
+      additionalProperties?: boolean;
+    };
     strict?: boolean;
   }
 
-  class ToolComponent {
-    constructor(..._args: any[]) {}
-
-    static getDefinition?: () => ToolDefinition | undefined;
+  class ToolComponent extends StructuredOutput {
+    static getToolSchema?: () => ToolDefinition | undefined;
 
     async run(params?: unknown): Promise<unknown> {
       return undefined;
@@ -100,10 +136,10 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
   }
   ```
 
- - **Authoritative definition ([`ToolDefinition`](../../src/tools/tool.ts))**
+ - **Authoritative definition ([`ToolDefinition`](../../src/models/structured_output.ts))**
   - "Authoritative" here means the single source-of-truth for a tool's metadata and parameter schema: it is stored verbatim on the decorated class and is used for validation, provider translations, and auditing.
-  - The definition includes `type: "function"`, `name`, optional `description`, optional `parameters` JSON Schema, `strict` (for providers that support it), and `allowNoSchema` + `noSchemaMode` flags for the explicit escape hatch.
-  - `parameters` is treated as required for production tools. If authors opt into `allowNoSchema`, the runtime expects downstream systems to mark the tool as unvalidated and enforce additional guardrails.
+  - The definition captures the tool's `name`, optional `description`, the original provider `type`, and (when supplied) a JSON Schema for parameters, including nested property definitions and `required` fields. All members are optional to support escape hatches, but production tools should populate the full structure.
+  - `parameters` is treated as required for production tools. If authors deliberately omit them (e.g., by setting `allowNoSchema` in the original `SchemaDefinition`), downstream systems should treat the tool as unvalidated and enforce additional guardrails.
 
 ### Authoritative schema and validation policy (deferred)
 
@@ -112,9 +148,9 @@ Tools give the agent a deterministic runtime mechanism to execute code at its di
 ### Provider integration status
 
 - **[`Ollama`](../../src/client/ollama_client.ts)**
-  - Translation: implemented. `mapToolDefinitionToTool` reshapes the authoritative definition into Ollama’s nested `{ type: 'function', function: { … } }` payload so it can be passed directly into the SDK request.
+  - Translation: implemented. `mapToolSchemaToTool` reshapes each `getToolSchema()` result into the `{ type: 'function', function: { … } }` payload that Ollama expects (and `mapSchemaToToolParameters` flattens the nested JSON Schema into `parameters`).
   - Dispatch: implemented. `toolCall` attaches the mapped tools to the chat request and sends it through the SDK (logging both the request and response for now).
-  - Hydration: implemented, but minimal. `toolCall` wires raw provider payloads into each tool class via `static hydration`. There is no shared parsing/validation yet, so tools must handle malformed arguments defensively.
+  - Hydration & execution: implemented but minimal. After receiving `tool_calls`, the client looks up the matching class by schema name, calls `validate(toolCall.function.arguments)` (inherited from `StructuredOutput`) and, if valid, invokes `hydrate(toolCall)` to produce a tool instance before finally calling `run()`. Because validation still depends on provider output quality, individual tools should defensively handle malformed payloads.
 
 - **OpenAI / Anthropic**
   - Translation: trivial (flat `{ name, description, parameters, strict }`) but no client exists yet. Future adapters will be responsible for translating definitions and invoking their respective SDKs in the same way Ollama does.
@@ -135,15 +171,15 @@ async toolCall(input: ChatRequest, tools: Array<typeof ToolComponent>): Promise<
   // 1) Build a lookup from tool name -> class so we can hydrate later
   const registry = new Map<string, typeof ToolComponent>();
   tools.forEach((toolClass) => {
-    const def = toolClass.getDefinition?.();
+    const def = toolClass.getToolSchema?.();
     if (def?.name) registry.set(def.name, toolClass);
   });
 
   // 2) Translate authoritative definitions into the provider shape
   input.tools = tools
-    .map((toolClass) => toolClass.getDefinition?.())
+    .map((toolClass) => toolClass.getToolSchema?.())
     .filter((def): def is ToolDefinition => !!def)
-    .map(mapToolDefinitionToTool);
+    .map(mapToolSchemaToTool);
 
   // 3) Dispatch the request
   const response = await this.chat({ ...input, stream: false });
