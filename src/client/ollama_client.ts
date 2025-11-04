@@ -1,7 +1,6 @@
 import { Singleton, SingletonComponent } from "@innobridge/memoizedsingleton";
 import { Ollama, ShowResponse, ChatRequest, ChatResponse, Tool } from "ollama";
 import { StructuredOutputValidationError, type LLMClient } from '@/client/llmclient';
-import { JsonSchema } from "@/tools/tool";
 import { StructuredOutput, ToolComponent } from "@/models/structured_output";
 
 @Singleton
@@ -45,7 +44,7 @@ class OllamaClient extends SingletonComponent implements LLMClient {
                 const schema = tool.getToolSchema?.();
                 if (schema) {
                     return {
-                        type: (schema as { type?: string }).type ?? 'function',
+                        type: (schema as { toolType?: string }).toolType ?? 'function',
                         function: schema
                     }
                 }
@@ -141,77 +140,6 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         super.stop();
     };
     
-};
-
-interface OllamaToolParameters {
-    type?: string;
-    $defs?: any;
-    items?: any;
-    required?: string[];
-    properties?: Record<string, JsonSchema>;
-    additionalProperties?: boolean;
-    strict?: boolean;
-    allowNoSchema?: boolean;
-}
-
-const mapSchemaToToolParameters = (schema: JsonSchema): OllamaToolParameters | undefined => {
-    if (typeof schema !== 'object' || !schema) return undefined;
-
-    const properties = (schema as { properties?: Record<string, JsonSchema> }).properties;
-    const directProperties =
-        properties ?? (Object.keys(schema).length > 0 ? (schema as Record<string, JsonSchema>) : undefined);
-
-    if (!directProperties || Object.keys(directProperties).length === 0) {
-        return undefined;
-    }
-
-    const parameters: OllamaToolParameters = {
-        type: 'object',
-        properties: directProperties,
-    };
-
-    const required = (schema as { required?: string[] }).required;
-    if (Array.isArray(required) && required.length > 0) {
-        parameters.required = required;
-    }
-
-    const additionalProperties = (schema as { additionalProperties?: boolean }).additionalProperties;
-    if (additionalProperties !== undefined) {
-        parameters.additionalProperties = additionalProperties;
-    }
-
-    const strict = (schema as { strict?: boolean }).strict;
-    if (strict !== undefined) {
-        parameters.strict = strict;
-    }
-
-    const allowNoSchema = (schema as { allowNoSchema?: boolean }).allowNoSchema;
-    if (allowNoSchema !== undefined) {
-        parameters.allowNoSchema = allowNoSchema;
-    }
-
-    return parameters;
-};
-
-const mapToolSchemaToTool = (schema: JsonSchema): Tool | undefined => {
-    if (typeof schema !== 'object' || !schema) return undefined;
-
-    const toolType = (schema as { type?: string }).type ?? 'function';
-    const name = (schema as { name?: string }).name;
-    if (!name) return undefined;
-
-    const description = (schema as { description?: string }).description;
-    const parametersSchema = (schema as { parameters?: JsonSchema }).parameters;
-    const parameters = parametersSchema ? mapSchemaToToolParameters(parametersSchema) : undefined;
-
-    return {
-        type: toolType,
-        function: {
-            name,
-            ...(description ? { description } : {}),
-            ...(parameters ? { parameters } : {}),
-        },
-    } as unknown as Tool;
 };
 
 export {

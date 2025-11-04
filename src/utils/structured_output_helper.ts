@@ -41,7 +41,7 @@ const buildJSONFromSchema = (
     if (structuredOutputType === StructuredOutputType.TOOL) {
         (jsonSchema as Record<string, unknown>).toolType = schemaDefinition.type;
     }
-    
+
     const properties = buildPropertySchema(schemaDefinition.properties, resolveStructuredSchema);
     jsonSchema.properties = properties;
 

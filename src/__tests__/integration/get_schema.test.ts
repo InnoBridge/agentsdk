@@ -21,7 +21,7 @@ const getSchemaMathReasoningTest = async () => {
 const getSchemaUserProfileTest = async () => {
     const schema = (UserProfile as typeof StructuredOutput).getSchema?.();
     console.log("UserProfile schema: ", JSON.stringify(schema, null, 2));
-}
+};
 
 const getSchemaTelemetryReadingTest = async () => {
     const schema = (TelemetryReading as typeof StructuredOutput).getSchema?.();

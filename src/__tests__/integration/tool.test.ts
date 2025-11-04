@@ -123,12 +123,12 @@ const callBraveSearch = async () => {
         initialConfig();
 
         // getWeatherSchemaTest();
-        // getBraveSearchSchemaTest();
+        getBraveSearchSchemaTest();
         // validateWeatherTest();
         // validateBraveSearchTest();
         // toolTest();
         // await callWeather();
-        await callBraveSearch();
+        // await callBraveSearch();
 
         shutdownConfig();
         console.log("🎉 All integration tests passed");

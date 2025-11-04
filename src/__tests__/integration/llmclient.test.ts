@@ -260,11 +260,11 @@ const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
         // await getModelsTest(testLLMClients.getOllamaClient());
         // await getModelInfoTest(testLLMClients.getOllamaClient());
         // await chatTest(testLLMClients.getOllamaClient());
-        // await toolCallTest(testLLMClients.getOllamaClient());
+        await toolCallTest(testLLMClients.getOllamaClient());
         // await dtoStructuredOutputMathReasoningTest(testLLMClients.getOllamaClient());
         // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
-        await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
+        // await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
         // await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');

@@ -16,7 +16,7 @@ ToolComponent.getToolSchema = function() {
     const schema = (this as typeof ToolComponent).getSchema?.();
     if (typeof schema !== 'object' || !schema) return undefined;
     
-    const toolType = (schema as { type?: string }).type ?? 'object';
+    const toolType = (schema as { toolType?: string }).toolType ?? 'object';
     const name = (schema as { name?: string }).name;
     if (!name) return undefined;
 
