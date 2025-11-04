@@ -164,7 +164,9 @@ StructuredOutput.validate = function(
     originalHydrationRecipe: unknown,
     previousRepairs?: Repair[]
 ): ValidatedResult {
+    console.log("originalHydrationRecipe: ", originalHydrationRecipe);
     const schema = this.getSchema?.();
+    console.log("schema: ", schema);
     if (!schema) {
         throw new Error(`No schema defined for ${this.name}. Cannot validate.`);
     }

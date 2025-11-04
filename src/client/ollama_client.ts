@@ -36,9 +36,9 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         tools.forEach(tool => {
             const schema = tool.getSchema?.();
             const name = (schema as { name?: string } | undefined)?.name;
-        //     if (name) {
-        //         toolNameToolComponentMap.set(name, tool);
-        //     }
+            if (name) {
+                toolNameToolComponentMap.set(name, tool);
+            }
         });
         const toolParams = tools
             .map(tool => {
@@ -52,22 +52,27 @@ class OllamaClient extends SingletonComponent implements LLMClient {
                 return undefined;
             })
             .filter((def): def is Tool => def !== undefined);
-        
-        console.log('Tool parameters: ', JSON.stringify(toolParams, null, 2));
-
+    
         input.tools = toolParams;
         const result = await this.chat({ ...input, stream: false });
 
-        console.log("Tool call response: ", JSON.stringify(result, null, 2));
+        const toolCalls: ToolComponent[] = result.message.tool_calls
+            ? result.message.tool_calls.map(toolCall => {
+                const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
+                if (toolComponent) {
+                    const validationResult = toolComponent.validate?.(toolCall.function.arguments);
+                    if (validationResult && validationResult.valid) {
+                        return toolComponent?.hydrate?.(toolCall);
+                    } else {
+                        console.error(`Tool call validation failed for: ${toolCall.function.name}`);
+                    }
+                } else {
+                    console.error(`No tool component found for tool call: ${toolCall.function.name}`);
+                }
+            }).filter((tc): tc is ToolComponent => tc !== undefined)
+            : [];
+        return toolCalls;
 
-        // const toolCalls: ToolComponent[] = result.message.tool_calls
-        //     ? result.message.tool_calls.map(toolCall => {
-        //         const toolComponent = toolNameToolComponentMap.get(toolCall.function.name);
-        //         return toolComponent?.hydrate?.(toolCall);
-        //     }).filter((tc): tc is ToolComponent => tc !== undefined)
-        //     : [];
-        // return toolCalls;
-        return [];
     };
 
     async toStructuredOutput<T extends typeof StructuredOutput>(
@@ -91,12 +96,10 @@ class OllamaClient extends SingletonComponent implements LLMClient {
         let validationResult = dto.validate?.(hydrationRecipe);
 
         if (validationResult?.valid) {
-            console.log("valid");
             return dto.hydrate?.(hydrationRecipe) as InstanceType<T>;
         }
 
         for (let attempt = 0; attempt < retries; attempt++) {
-            console.log(`Validation failed. Attempting to repair structured output (Attempt ${attempt + 1}/${retries})...`);
             const messages = request.messages || [];
             messages.push({
                 role: 'system',

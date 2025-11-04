@@ -20,8 +20,11 @@ const buildJSONFromSchema = (
     resolveStructuredSchema: ResolveStructuredSchema,
     structuredOutputType: StructuredOutputType
 ): JsonSchema => {
+    const schemaType =
+        structuredOutputType === StructuredOutputType.TOOL ? 'object' : schemaDefinition.type;
+
     const jsonSchema: JsonSchema = {
-        type: schemaDefinition.type,
+        type: schemaType,
         name: schemaDefinition.name,
         description: schemaDefinition.description,
         properties: {},
@@ -34,6 +37,10 @@ const buildJSONFromSchema = (
             ? { allowNoSchema: schemaDefinition.allowNoSchema }
             : {}),
     };
+
+    if (structuredOutputType === StructuredOutputType.TOOL) {
+        (jsonSchema as Record<string, unknown>).toolType = schemaDefinition.type;
+    }
     
     const properties = buildPropertySchema(schemaDefinition.properties, resolveStructuredSchema);
     jsonSchema.properties = properties;
