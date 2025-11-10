@@ -30,6 +30,10 @@ The project has the following files and directories:
 - `dist`: Directory containing generated files. The contents of this directory is published
 - `.github/workflows/ci.yml`: GitHub action that runs typechecks, tests and build
 
+## Conventions
+- Follow `docs/style-guide.md` for TypeScript export patterns and any additional repository-specific preferences.
+- Review `AGENTS.md` for the contribution workflow, coding standards, and release expectations specific to this SDK.
+
 ## Publish to NPM via github action
 Create an account on https://www.npmjs.com/
 create a token
