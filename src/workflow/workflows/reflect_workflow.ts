@@ -2,6 +2,7 @@ import { StructuredOutputValidationError } from "@/client/llmclient";
 import { DTO } from "@/tools/structured_output";
 import { State, TerminalState } from "@/workflow/state";
 import { StateMachine } from "../workflow";
+import { StructuredOutput } from "@/models/structured_output";
 
 class ReflectState extends State {
     private input: any;
@@ -60,52 +61,35 @@ class ShouldReflect {
     }
 }
 
-type ToStructuredOutputFn = (
-  input: any,
-  dto: typeof ShouldReflect,
-  retries?: number,
-) => Promise<ShouldReflect | StructuredOutputValidationError>;
-
 class ReflectWorkflow extends StateMachine {
-  private readonly toStructuredOutputFn?: ToStructuredOutputFn;
 
   constructor(
     input: any,
     chatFunc: (input: any) => Promise<any>,
-    toStructuredOutput?: ToStructuredOutputFn,
+    toStructuredOutput?: <T extends typeof StructuredOutput>(
+        input: any, 
+        dto: T,
+        retries?: number
+    ) => Promise<InstanceType<T> | StructuredOutputValidationError>
   ) {
     const initialState = new ReflectState(input, chatFunc);
 
-    // const transitions = new Map<string, (currentState: State) => Promise<State>>();
-    // transitions.set(
-    //   ReflectState.name,
-    //   async (currentState: State): Promise<State> =>
-        // new TerminalReflectState((currentState as ReflectState).getInput()),
-    // );
+    const transitionFromReflectState = async (state: State): Promise<ReflectState | TerminalReflectState> => {
+      const input = (state as ReflectState).getInput();
+      const shouldReflectResult = await toStructuredOutput!(input, ShouldReflect);
+      console.log("Should Reflect:", shouldReflectResult);
+      console.log("input:", input);
+      if (!(shouldReflectResult instanceof StructuredOutputValidationError) && (shouldReflectResult as ShouldReflect).getShouldReflect()) {
+        return new ReflectState(input, chatFunc);
+      }
+      return new TerminalReflectState(input);
+    };
 
     const transitions = new Map<string, (currentState: State) => Promise<State>>([
-      [
-        ReflectState.name,
-        async (currentState: State): Promise<TerminalReflectState> => {
-          const input = (currentState as ReflectState).getInput();
-          return new TerminalReflectState(input);
-        },
-      ],
+      [ReflectState.name, transitionFromReflectState],
     ]);
 
     super(initialState, transitions);
-    this.toStructuredOutputFn = toStructuredOutput;
-  }
-
-  async toStructuredOutput(input: any, retries?: number): Promise<ShouldReflect | null> {
-    if (!this.toStructuredOutputFn) {
-      return null;
-    }
-    const result = await this.toStructuredOutputFn(input, ShouldReflect, retries);
-    if (result instanceof StructuredOutputValidationError) {
-      throw result;
-    }
-    return result;
   }
 }
 
