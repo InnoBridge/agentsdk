@@ -35,8 +35,8 @@ const reflectionAgentChatTest = async (agent: ReflectionAgent) => {
     console.log("ReflectionAgent chat test passed. Response:", response.message.content);
 };
 
-const reflectionAgentReflectTest = async (agent: ReflectionAgent) => {
-    console.log("Running ReflectionAgent reflect test...");
+const reflectionAgentRunTest = async (agent: ReflectionAgent) => {
+    console.log("Running ReflectionAgent run test...");
     
     const reflectInput = {
         model: "qwen3-coder:30b",
@@ -45,9 +45,9 @@ const reflectionAgentReflectTest = async (agent: ReflectionAgent) => {
         ]
     };
 
-    const result = await agent.reflect(reflectInput);
-    console.log("ReflectionAgent reflect test result: ", result);
-    console.log("ReflectionAgent reflect test completed.");
+    const result = await agent.run(reflectInput);
+    console.log("ReflectionAgent run test result: ", result);
+    console.log("ReflectionAgent run test completed.");
 }
 
 (async function main() {
@@ -57,7 +57,7 @@ const reflectionAgentReflectTest = async (agent: ReflectionAgent) => {
 
         // promise tests in order
         // await reflectionAgentChatTest(agent);
-        await reflectionAgentReflectTest(agent);
+        await reflectionAgentRunTest(agent);
 
         console.log("🎉 All integration tests passed");
     } catch (err) {

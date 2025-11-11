@@ -1,19 +1,17 @@
-import { LLMClient } from "@/client/llmclient";
+import { StructuredOutput, ToolComponent } from "@/models/structured_output";
 
 // Agent runtime contract: createSession (per-run), run (required), stop (optional)
 interface Agent {
-
-  chat(input: any): Promise<any>;
-  // create per-run session/context — returns an implementation-defined (opaque) handle
-  // createSession(opts?: any): any;
-
-  // run the agent: given opts (input/params), perform planning and actions
-  // (may call tools, the LLM, or DB), produce a result T, and resolve or throw on fatal errors
-  // run<T = unknown>(opts?: any): Promise<T>;
-
-  // optional graceful shutdown for long-lived agents; idempotent and best-effort
-  // stop?(): Promise<void>;
-};
+  chat(input: unknown): Promise<unknown>;
+  toolCall?(input: unknown, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]>;
+  toStructuredOutput?<T extends typeof StructuredOutput>(
+    input: unknown,
+    dto: T,
+    retries?: number,
+  ): Promise<InstanceType<T>>;
+  run<T = unknown>(input?: unknown): Promise<T>;
+  stop?(): Promise<void>;
+}
 
 // OnDemandAgent: short-lived, ephemeral agent
 interface OnDemandAgent extends Agent {
