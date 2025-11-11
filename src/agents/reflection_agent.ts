@@ -37,7 +37,11 @@ class ReflectionAgent implements Agent {
     }
 
     async run<T = unknown>(input: ChatRequest): Promise<T> {
-        const workflow = new ReflectWorkflow(input, this.llmClient.chat.bind(this.llmClient));
+        const workflow = new ReflectWorkflow(
+            input,
+            this.llmClient.chat.bind(this.llmClient),
+            this.llmClient.toStructuredOutput?.bind(this.llmClient),
+        );
         let hasMore = true;
         let result: unknown = null;
 

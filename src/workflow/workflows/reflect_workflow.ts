@@ -1,6 +1,7 @@
+import { StructuredOutputValidationError } from "@/client/llmclient";
+import { DTO } from "@/tools/structured_output";
 import { State, TerminalState } from "@/workflow/state";
 import { StateMachine } from "../workflow";
-import { DTO } from "@/tools/structured_output";
 
 class ReflectState extends State {
     private input: any;
@@ -59,9 +60,20 @@ class ShouldReflect {
     }
 }
 
-class ReflectWorkflow extends StateMachine {
+type ToStructuredOutputFn = (
+  input: any,
+  dto: typeof ShouldReflect,
+  retries?: number,
+) => Promise<ShouldReflect | StructuredOutputValidationError>;
 
-  constructor(input: any, chatFunc: (input: any) => Promise<any>) {
+class ReflectWorkflow extends StateMachine {
+  private readonly toStructuredOutputFn?: ToStructuredOutputFn;
+
+  constructor(
+    input: any,
+    chatFunc: (input: any) => Promise<any>,
+    toStructuredOutput?: ToStructuredOutputFn,
+  ) {
     const initialState = new ReflectState(input, chatFunc);
 
     // const transitions = new Map<string, (currentState: State) => Promise<State>>();
@@ -72,17 +84,28 @@ class ReflectWorkflow extends StateMachine {
     // );
 
     const transitions = new Map<string, (currentState: State) => Promise<State>>([
-        [
-            ReflectState.name,
-            async (currentState: State): Promise<State> => {
-                const input = (currentState as ReflectState).getInput();
-                return new TerminalReflectState(input);
-            }
-        ]   
+      [
+        ReflectState.name,
+        async (currentState: State): Promise<TerminalReflectState> => {
+          const input = (currentState as ReflectState).getInput();
+          return new TerminalReflectState(input);
+        },
+      ],
     ]);
 
-
     super(initialState, transitions);
+    this.toStructuredOutputFn = toStructuredOutput;
+  }
+
+  async toStructuredOutput(input: any, retries?: number): Promise<ShouldReflect | null> {
+    if (!this.toStructuredOutputFn) {
+      return null;
+    }
+    const result = await this.toStructuredOutputFn(input, ShouldReflect, retries);
+    if (result instanceof StructuredOutputValidationError) {
+      throw result;
+    }
+    return result;
   }
 }
 
