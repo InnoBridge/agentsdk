@@ -16,10 +16,10 @@ interface Workflow {
 }
 
 class StateMachine implements Workflow {
-  private transitions: Map<typeof State, () => Promise<State>>;
+  private transitions: Map<string, (currentState: State) => Promise<State>>;
   private head: State;
-  
-  constructor(initialState: State, transitions: Map<typeof State, () => Promise<State>>) {
+
+  constructor(initialState: State, transitions: Map<string, (currentState: State) => Promise<State>>) {
     this.head = initialState;
     this.transitions = transitions;
   }
@@ -33,11 +33,11 @@ class StateMachine implements Workflow {
       return false;
     }
 
-    const nextState = this.transitions.get(this.head.constructor as typeof State);
+    const nextState = this.transitions.get(this.head.constructor.name);
     if (!nextState) {
       throw new Error(`No transition defined for state: ${this.head.constructor.name}`);
     }
-    this.head = await nextState();
+    this.head = await nextState(this.head);
     return true;
   }
 };

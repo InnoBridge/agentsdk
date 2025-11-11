@@ -35,13 +35,29 @@ const reflectionAgentChatTest = async (agent: ReflectionAgent) => {
     console.log("ReflectionAgent chat test passed. Response:", response.message.content);
 };
 
+const reflectionAgentReflectTest = async (agent: ReflectionAgent) => {
+    console.log("Running ReflectionAgent reflect test...");
+    
+    const reflectInput = {
+        model: "qwen3-coder:30b",
+        messages: [
+            { role: "user", content: "Reflect on the importance of continuous learning." }
+        ]
+    };
+
+    const result = await agent.reflect(reflectInput);
+    console.log("ReflectionAgent reflect test result: ", result);
+    console.log("ReflectionAgent reflect test completed.");
+}
+
 (async function main() {
     try {
         // sync test
         const agent = initializeReflectionAgent();
 
         // promise tests in order
-        await reflectionAgentChatTest(agent);   
+        // await reflectionAgentChatTest(agent);
+        await reflectionAgentReflectTest(agent);
 
         console.log("🎉 All integration tests passed");
     } catch (err) {

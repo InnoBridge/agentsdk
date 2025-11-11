@@ -11,12 +11,12 @@ abstract class State {
  * When reached, no further transitions are possible.
  */
 class TerminalState extends State {
-  constructor(private readonly result?: unknown) {
+  constructor() {
     super();
   }
 
   async run(input: unknown): Promise<unknown> {
-    return this.result ?? input;
+    return input;
   }
 }
 
