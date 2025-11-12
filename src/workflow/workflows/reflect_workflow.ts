@@ -42,7 +42,7 @@ class TerminalReflectState extends TerminalState {
     this.input = input;
   }
 
-  async run(): Promise<string> {
+  async run(_: unknown = undefined): Promise<string> {
     return this.input;
   }
 };
@@ -82,10 +82,8 @@ class ShouldReflect {
 
 class ReflectWorkflow extends StateMachine {
   private readonly llmClient: LLMClient;
-  private readonly chatFunc: (input: any) => Promise<any>;
 
-  constructor(input: any, llmClient: LLMClient, chatFunc?: (input: any) => Promise<any>) {
-    const resolvedChat = chatFunc ?? llmClient.chat.bind(llmClient);
+  constructor(input: any, llmClient: LLMClient) {
     const initialState = new ReflectState(input);
 
     const evaluateShouldReflect = async (currentInput: any): Promise<ShouldReflect | null> => {
@@ -139,11 +137,6 @@ class ReflectWorkflow extends StateMachine {
 
     super(initialState, transitions);
     this.llmClient = llmClient;
-    this.chatFunc = resolvedChat;
-  }
-
-  getChatFunc(): (input: any) => Promise<any> {
-    return this.chatFunc;
   }
 }
 

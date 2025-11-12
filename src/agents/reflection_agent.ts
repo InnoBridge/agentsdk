@@ -16,16 +16,15 @@ class ReflectionAgent implements Agent {
     async run<T = unknown>(input: ChatRequest): Promise<T> {
         const workflow = new ReflectWorkflow(input, this.llmClient);
         let currentState: any = workflow.getHead();
-        const chatFunc = workflow.getChatFunc();
 
         while (!workflow.isTerminal(currentState)) {
-            await currentState.run({ chatFunc });
+            await currentState.run({ chatFunc: this.llmClient.chat.bind(this.llmClient) });
             const nextState = await workflow.transition(currentState);
             currentState = nextState!;
         }
 
         // Run the terminal state once to capture its final result
-        return (await currentState.run({ chatFunc })) as T;
+        return (await currentState.run({})) as T;
     }
 
 }
