@@ -7,12 +7,16 @@ interface Workflow {
   getHead(): State;
 
   /**
-   * Advances the workflow to the next state. Implementations mutate their own
-   * internal pointer so the next `getHead()` call reflects the updated state.
-   * 
-   * @returns true when the workflow advanced, false when it is already terminal
+   * Advances the workflow based on the provided current state. Implementations are
+   * expected to mutate their internal pointer so subsequent `getHead()` calls reflect
+   * the update.
    */
-  transition(): Promise<boolean>;
+  transition(currentState: State): Promise<State | null>;
+
+  /**
+   * Returns true if the provided state represents a terminal node.
+   */
+  isTerminal(state: State): boolean;
 }
 
 class StateMachine implements Workflow {
@@ -28,17 +32,21 @@ class StateMachine implements Workflow {
     return this.head;
   }
 
-  async transition(): Promise<boolean> {
-    if (this.head instanceof TerminalState) {
-      return false;
+  async transition(currentState: State): Promise<State | null> {
+    if (currentState instanceof TerminalState) {
+      return null;
     }
 
-    const nextState = this.transitions.get(this.head.constructor.name);
+    const nextState = this.transitions.get(currentState.constructor.name);
     if (!nextState) {
-      throw new Error(`No transition defined for state: ${this.head.constructor.name}`);
+      throw new Error(`No transition defined for state: ${currentState.constructor.name}`);
     }
-    this.head = await nextState(this.head);
-    return true;
+    this.head = await nextState(currentState);
+    return this.head;
+  }
+
+  isTerminal(state: State): boolean {
+    return state instanceof TerminalState;
   }
 };
 

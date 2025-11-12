@@ -41,8 +41,11 @@ const reflectionAgentRunTest = async (agent: ReflectionAgent) => {
     const reflectInput = {
         model: "qwen3-coder:30b",
         messages: [
-            { role: "user", content: "Reflect on the importance of continuous learning." }
-        ]
+            {
+                role: "user",
+                content: "You just finished building an agent SDK milestone. Write a structured reflection that covers: (1) what went well shipping the new workflow engine, (2) what slowed the team down, (3) concrete experiments we should run next sprint to validate reliability. Keep the tone pragmatic and reference testing, documentation, and developer experience.",
+            },
+        ],
     };
 
     const result = await agent.run(reflectInput);
