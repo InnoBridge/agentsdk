@@ -1,7 +1,9 @@
+import { randomUUID } from "crypto";
+import type { AgentId } from "@/agents/agent";
 import { StructuredOutputValidationError } from "@/client/llmclient";
 import { DTO } from "@/tools/structured_output";
 import { State, TerminalState } from "@/workflow/state";
-import { StateMachine } from "../workflow";
+import { StateMachine, type WorkflowId } from "../workflow";
 
 @DTO({
   type: 'object',
@@ -143,7 +145,7 @@ class TerminalReflectState extends TerminalState {
 }
 
 class ReflectWorkflow extends StateMachine {
-  constructor(input: any) {
+  constructor(input: any, agentId?: AgentId) {
     const initialState = new ReflectState(input);
 
     const transitions = new Map<string, (currentState: State) => Promise<State>>([
@@ -166,8 +168,14 @@ class ReflectWorkflow extends StateMachine {
       ],
     ]);
 
-    super(initialState, transitions);
+    const workflowId: WorkflowId = {
+      name: ReflectWorkflow.name,
+      id: randomUUID(),
+      agentId,
+    };
+
+    super(initialState, transitions, workflowId);
   }
 }
 
-export { ReflectState, ShouldReflectState, TerminalReflectState, ReflectWorkflow };
+export { ReflectState, ShouldReflectState, TerminalReflectState, ReflectWorkflow, ShouldReflect };

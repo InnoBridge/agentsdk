@@ -1,5 +1,10 @@
 import { StructuredOutput, ToolComponent } from "@/models/structured_output";
 
+type AgentId = {
+  name: string;
+  id?: string;
+};
+
 // Agent runtime contract: createSession (per-run), run (required), stop (optional)
 interface Agent {
   chat(input: unknown): Promise<unknown>;
@@ -11,6 +16,7 @@ interface Agent {
   ): Promise<InstanceType<T>>;
   run<T = unknown>(input?: unknown): Promise<T>;
   stop?(): Promise<void>;
+  getId?(): AgentId;
 }
 
 // OnDemandAgent: short-lived, ephemeral agent
@@ -36,3 +42,5 @@ export {
   // OnDemandAgent,
   // PersistentAgent,
 };
+
+export type { AgentId };

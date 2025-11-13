@@ -13,8 +13,12 @@ class ReflectionAgent implements Agent {
         return this.llmClient.chat(input);
     }
 
+    getId() {
+        return { name: this.constructor.name };
+    }
+
     async run<T = unknown>(input: ChatRequest): Promise<T> {
-        const workflow = new ReflectWorkflow(input);
+        const workflow = new ReflectWorkflow(input, this.getId());
         let currentState: any = workflow.getHead();
 
         while (!workflow.isTerminal(currentState)) {
