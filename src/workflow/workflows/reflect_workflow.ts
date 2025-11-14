@@ -148,7 +148,7 @@ class TerminalReflectState extends TerminalState {
 
 @DTO({
   type: 'object',
-  description: 'ReflectWorkflow metadata describing the input payload and optional agent identifier.',
+  description: 'Message payload for ReflectWorkflow input.',
   properties: {
     role: {
       type: 'string',
@@ -172,7 +172,7 @@ class Message {
 
 @DTO({
     type: 'object',
-    description: 'ReflectWorkflow metadata describing the input payload and optional agent identifier.',
+    description: 'Input payload for chat requests including model identifier and message history.',
     properties: {
         model: {
             type: 'string',
