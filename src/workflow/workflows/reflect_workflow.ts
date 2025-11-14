@@ -180,7 +180,7 @@ class Message {
         },
         messages: array(Message)
     },
-    required: ['model','messages'],
+    required: ['model', 'messages'],
 })
 class Input {
     model: string;
