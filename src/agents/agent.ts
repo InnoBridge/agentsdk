@@ -56,6 +56,5 @@ export {
   Agent,
   // OnDemandAgent,
   // PersistentAgent,
+  AgentId,
 };
-
-export { AgentId };
