@@ -42,7 +42,6 @@ interface OnDemandAgent extends Agent {
 
   // owner: optional user id who created the agent (for audit/access while active)
   // owner?: string; // optional short-term owner
-  // ...existing code...
 }
 
 // PersistentAgent: long-lived registered agent with stable id and ACLs
