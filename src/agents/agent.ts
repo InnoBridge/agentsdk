@@ -7,16 +7,19 @@ import { DTO } from '@/tools/structured_output';
   properties: {
     name: { type: 'string', description: 'Agent implementation name.' },
     id: { type: 'string', description: 'Persistent agent identifier, if available.' },
+    userId: { type: 'string', description: 'Owner or creator identifier, if applicable.' },
   },
   required: ['name'],
 })
 class AgentId {
   name: string;
   id?: string;
+  userId?: string;
 
-  constructor(name: string, id?: string) {
+  constructor(name: string, id?: string, userId?: string) {
     this.name = name;
     this.id = id;
+    this.userId = userId;
   }
 }
 
@@ -36,18 +39,12 @@ interface Agent {
 
 // OnDemandAgent: short-lived, ephemeral agent
 interface OnDemandAgent extends Agent {
-  // tempId: short-lived correlation id to map a client/request to this ephemeral agent
-  // (not a stable identity, not used for authorization; expires quickly)
-  // tempId?: string;
-
-  // owner: optional user id who created the agent (for audit/access while active)
-  // owner?: string; // optional short-term owner
+  // tempId?: string; // short-lived correlation id
 }
 
 // PersistentAgent: long-lived registered agent with stable id and ACLs
 interface PersistentAgent extends Agent {
   // id: string; // stable identifier (slug/UUID)
-  // owner: string; // owner/team id
   // acl?: Record<string, string[]>; // simple ACL map
 }
 
