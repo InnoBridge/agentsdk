@@ -1,3 +1,7 @@
+/**
+ * NOTE: These tests expect OLLAMA_BASE_URL to be configured (via .env or env var)
+ * so the Ollama client can connect to its model runtime.
+ */
 import { ReflectWorkflow } from "@/workflow/workflows/reflect_workflow";
 import { Config, getApplicationContext, getConfig, Insert } from "@innobridge/memoizedsingleton";
 import { OllamaClient } from "@/client/ollama_client";

@@ -1,3 +1,8 @@
+/**
+ * NOTE: These tests expect `OLLAMA_BASE_URL`, `WEATHER_API_BASEURL`, `WEATHER_API_KEY`,
+ * `BRAVE_SEARCH_BASEURL`, and `BRAVE_SEARCH_API_KEY` to be configured (via .env or env vars)
+ * so the Ollama client and tool adapters can reach their respective runtimes.
+ */
 import {
     Config,
     getConfig,

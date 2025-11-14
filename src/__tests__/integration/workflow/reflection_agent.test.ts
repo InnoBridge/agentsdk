@@ -1,3 +1,7 @@
+/**
+ * NOTE: This test expects OLLAMA_BASE_URL to be configured (via .env or env var)
+ * so that the Ollama client can connect to the underlying model runtime.
+ */
 import { ReflectionAgent } from "@/agents/reflection_agent";
 import { OllamaClient } from "@/client/ollama_client";
 import { Input, ReflectWorkflow } from "@/workflow/workflows/reflect_workflow";
