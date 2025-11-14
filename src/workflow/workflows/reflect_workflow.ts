@@ -168,7 +168,7 @@ class Message {
         this.role = role;
         this.content = content;
     }
-};
+}
 
 @DTO({
     type: 'object',
