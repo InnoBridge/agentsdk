@@ -1,5 +1,8 @@
 import type { AgentId } from '@/agents/agent';
+import type { SchemaDefinition } from '@/models/structured_output';
+import { StructuredOutput, StructuredOutputType } from '@/models/structured_output';
 import { State, TerminalState } from '@/workflow/state';
+import { BaseStructuredOutput } from '@/tools/structured_output';
 
 type WorkflowId = {
   name: string;
@@ -8,8 +11,11 @@ type WorkflowId = {
   userId?: string;
 };
 
+function Work(schemaDefinition: SchemaDefinition) {
+  return BaseStructuredOutput(schemaDefinition, StructuredOutputType.WORKFLOW);
+}
 
-abstract class Workflow {
+abstract class Workflow extends StructuredOutput {
   /**
    * Returns the first executable state plus any context needed to bootstrap the run.
    */
@@ -73,5 +79,5 @@ class StateMachine extends Workflow {
   }
 }
 
-export { Workflow, StateMachine };
-export type { AgentId, WorkflowId };
+export { Workflow, StateMachine, Work };
+export type { WorkflowId };

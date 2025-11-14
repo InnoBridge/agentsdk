@@ -1,9 +1,11 @@
 import { randomUUID } from "crypto";
-import type { AgentId } from "@/agents/agent";
+import { AgentId } from "@/agents/agent";
 import { StructuredOutputValidationError } from "@/client/llmclient";
 import { DTO } from "@/tools/structured_output";
 import { State, TerminalState } from "@/workflow/state";
-import { StateMachine, type WorkflowId } from "../workflow";
+import { StateMachine, type WorkflowId, Work } from "@/workflow/workflow";
+import { ChatRequest } from "ollama";
+import { array } from "@/models/structured_output";
 
 @DTO({
   type: 'object',
@@ -144,8 +146,72 @@ class TerminalReflectState extends TerminalState {
   }
 }
 
+@DTO({
+  type: 'object',
+  description: 'ReflectWorkflow metadata describing the input payload and optional agent identifier.',
+  properties: {
+    role: {
+      type: 'string',
+      description: 'The role of the message, e.g., "user", "assistant", "system".',
+    },
+    content: {
+      type: 'string',
+      description: 'The content of the message.',
+    },
+  },
+  required: ['role', 'content'],
+})
+class Message {
+    role: string;
+    content: string;
+    constructor(role: string, content: string) {
+        this.role = role;
+        this.content = content;
+    }
+};
+
+@DTO({
+    type: 'object',
+    description: 'ReflectWorkflow metadata describing the input payload and optional agent identifier.',
+    properties: {
+        model: {
+            type: 'string',
+            description: 'The model to be used for the chat request. default to "qwen3-coder:30b"',
+        },
+        messages: array(Message)
+    },
+    required: ['messages'],
+})
+class Input {
+    model: string;
+    messages: Message[];
+    constructor(model: string, messages: Message[]) {
+        this.model = model;
+        this.messages = messages;
+    }
+
+    toChatRequest(): ChatRequest {
+        return {
+            model: this.model,
+            messages: this.messages.map(msg => ({
+                role: msg.role,
+                content: msg.content
+            }))
+        };
+    }
+}
+
+@Work({
+  type: 'object',
+  description: 'ReflectWorkflow metadata describing the input payload and optional agent identifier.',
+  properties: {
+    input: Input,
+    agentId: AgentId,
+  },
+  required: ['input'],
+})
 class ReflectWorkflow extends StateMachine {
-  constructor(input: any, agentId?: AgentId) {
+  constructor(input: Input, agentId?: AgentId) {
     const initialState = new ReflectState(input);
 
     const transitions = new Map<string, (currentState: State) => Promise<State>>([
@@ -179,3 +245,4 @@ class ReflectWorkflow extends StateMachine {
 }
 
 export { ReflectState, ShouldReflectState, TerminalReflectState, ReflectWorkflow, ShouldReflect };
+export type { Input };

@@ -1,9 +1,24 @@
 import { StructuredOutput, ToolComponent } from "@/models/structured_output";
+import { DTO } from '@/tools/structured_output';
 
-type AgentId = {
+@DTO({
+  type: 'object',
+  description: 'Identifier payload for agents (name plus optional stable id).',
+  properties: {
+    name: { type: 'string', description: 'Agent implementation name.' },
+    id: { type: 'string', description: 'Persistent agent identifier, if available.' },
+  },
+  required: ['name'],
+})
+class AgentId {
   name: string;
   id?: string;
-};
+
+  constructor(name: string, id?: string) {
+    this.name = name;
+    this.id = id;
+  }
+}
 
 // Agent runtime contract: createSession (per-run), run (required), stop (optional)
 interface Agent {
@@ -43,4 +58,4 @@ export {
   // PersistentAgent,
 };
 
-export type { AgentId };
+export { AgentId };
