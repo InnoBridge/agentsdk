@@ -176,7 +176,7 @@ class Message {
     properties: {
         model: {
             type: 'string',
-            description: 'The model to be used for the chat request. default to "qwen3-coder:30b"',
+            description: 'The model to be used for the chat request. Defaults to "qwen3-coder:30b".',
         },
         messages: array(Message)
     },
