@@ -265,7 +265,7 @@ const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
         // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
         // await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
-        // await shutdownOllama(testLLMClients.getOllamaClient());
+        await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
     } catch (err) {

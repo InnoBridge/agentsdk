@@ -1,5 +1,6 @@
 import { ReflectionAgent } from "@/agents/reflection_agent";
 import { OllamaClient } from "@/client/ollama_client";
+import { Input, ReflectWorkflow } from "@/workflow/workflows/reflect_workflow";
 import { Config, getConfig } from "@innobridge/memoizedsingleton";
 
 const initializeReflectionAgent = (): ReflectionAgent => {
@@ -48,7 +49,8 @@ const reflectionAgentRunTest = async (agent: ReflectionAgent) => {
         ],
     };
 
-    const result = await agent.run(reflectInput);
+    const workflow = new ReflectWorkflow(reflectInput as Input, agent.getId());
+    const result = await agent.run(workflow);
     console.log("ReflectionAgent run test result: ", result);
     console.log("ReflectionAgent run test completed.");
 }

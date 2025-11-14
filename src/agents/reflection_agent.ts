@@ -3,7 +3,7 @@ import { Insert } from '@innobridge/memoizedsingleton';
 import { OllamaClient } from '@/client/ollama_client';
 import { ChatRequest } from 'ollama';
 import { LLMClient } from '@/client/llmclient';
-import { ReflectWorkflow } from '@/workflow/workflows/reflect_workflow';
+import { Workflow } from '@/workflow/workflow';
 
 class ReflectionAgent implements Agent {
     @Insert(OllamaClient)
@@ -17,8 +17,7 @@ class ReflectionAgent implements Agent {
         return { name: this.constructor.name };
     }
 
-    async run<T = unknown>(input: ChatRequest): Promise<T> {
-        const workflow = new ReflectWorkflow(input, this.getId());
+    async run<T = unknown>(workflow: Workflow): Promise<T> {
         let currentState: any = workflow.getHead();
 
         while (!workflow.isTerminal(currentState)) {
