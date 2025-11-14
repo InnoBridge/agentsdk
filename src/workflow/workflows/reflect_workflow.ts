@@ -148,7 +148,7 @@ class TerminalReflectState extends TerminalState {
 
 @DTO({
   type: 'object',
-  description: 'Message payload for ReflectWorkflow input.',
+  description: 'Message payload for chat-based workflows (role plus content).',
   properties: {
     role: {
       type: 'string',
