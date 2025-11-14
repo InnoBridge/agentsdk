@@ -26,7 +26,8 @@ const array = (value: SchemaValue): ArraySchemaValue => {
 
 enum StructuredOutputType {
     DTO,
-    TOOL
+    TOOL,
+    WORKFLOW,
 };
 
 type EnumProp = {
@@ -141,4 +142,3 @@ export type {
   EnumProp,
   EnumSchema,
 };
-

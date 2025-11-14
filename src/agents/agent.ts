@@ -1,38 +1,56 @@
-import { LLMClient } from "@/client/llmclient";
+import { StructuredOutput, ToolComponent } from "@/models/structured_output";
+import { DTO } from '@/tools/structured_output';
+
+@DTO({
+  type: 'object',
+  description: 'Identifier payload for agents (name plus optional stable id).',
+  properties: {
+    name: { type: 'string', description: 'Agent implementation name.' },
+    id: { type: 'string', description: 'Persistent agent identifier, if available.' },
+    userId: { type: 'string', description: 'Owner or creator identifier, if applicable.' },
+  },
+  required: ['name'],
+})
+class AgentId {
+  name: string;
+  id?: string;
+  userId?: string;
+
+  constructor(name: string, id?: string, userId?: string) {
+    this.name = name;
+    this.id = id;
+    this.userId = userId;
+  }
+}
 
 // Agent runtime contract: createSession (per-run), run (required), stop (optional)
 interface Agent {
-  // create per-run session/context — returns an implementation-defined (opaque) handle
-  createSession(opts?: any): any;
-
-  // run the agent: given opts (input/params), perform planning and actions
-  // (may call tools, the LLM, or DB), produce a result T, and resolve or throw on fatal errors
-  run<T = unknown>(opts?: any): Promise<T>;
-
-  // optional graceful shutdown for long-lived agents; idempotent and best-effort
+  chat(input: unknown): Promise<unknown>;
+  toolCall?(input: unknown, tools: Array<typeof ToolComponent>): Promise<ToolComponent[]>;
+  toStructuredOutput?<T extends typeof StructuredOutput>(
+    input: unknown,
+    dto: T,
+    retries?: number,
+  ): Promise<InstanceType<T>>;
+  run<T = unknown>(input?: unknown): Promise<T>;
   stop?(): Promise<void>;
-};
+  getId?(): AgentId;
+}
 
 // OnDemandAgent: short-lived, ephemeral agent
 interface OnDemandAgent extends Agent {
-  // tempId: short-lived correlation id to map a client/request to this ephemeral agent
-  // (not a stable identity, not used for authorization; expires quickly)
-  tempId?: string;
-
-  // owner: optional user id who created the agent (for audit/access while active)
-  owner?: string; // optional short-term owner
-  // ...existing code...
+  // tempId?: string; // short-lived correlation id
 }
 
 // PersistentAgent: long-lived registered agent with stable id and ACLs
 interface PersistentAgent extends Agent {
-  id: string; // stable identifier (slug/UUID)
-  owner: string; // owner/team id
-  acl?: Record<string, string[]>; // simple ACL map
+  // id: string; // stable identifier (slug/UUID)
+  // acl?: Record<string, string[]>; // simple ACL map
 }
 
 export {
   Agent,
-  OnDemandAgent,
-  PersistentAgent,
+  // OnDemandAgent,
+  // PersistentAgent,
+  AgentId,
 };

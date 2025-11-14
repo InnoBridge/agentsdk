@@ -1,3 +1,8 @@
+/**
+ * NOTE: These tests expect `OLLAMA_BASE_URL`, `WEATHER_API_BASEURL`, `WEATHER_API_KEY`,
+ * `BRAVE_SEARCH_BASEURL`, and `BRAVE_SEARCH_API_KEY` to be configured (via .env or env vars)
+ * so the Ollama client and tool adapters can reach their respective runtimes.
+ */
 import {
     Config,
     getConfig,
@@ -265,7 +270,7 @@ const structuredOutputRawTelemetryTest = async (ollamaClient: LLMClient) => {
         // await structuredOutputArithmeticOperationsTest(testLLMClients.getOllamaClient());
         // await structuredOutputUserProfileTest(testLLMClients.getOllamaClient());
         // await structuredOutputRawTelemetryTest(testLLMClients.getOllamaClient());
-        // await shutdownOllama(testLLMClients.getOllamaClient());
+        await shutdownOllama(testLLMClients.getOllamaClient());
 
         console.log('🎉 LLMClient integration test passed');
     } catch (err) {

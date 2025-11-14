@@ -1,3 +1,8 @@
+/**
+ * NOTE: These tests expect `WEATHER_API_BASEURL`, `WEATHER_API_KEY`, `BRAVE_SEARCH_BASEURL`,
+ * and `BRAVE_SEARCH_API_KEY` to be configured (via .env or env vars) so the tool clients
+ * can reach their external services.
+ */
 import { WeatherTool } from "@/examples/tools/weather";
 import { ToolComponent, ToolDefinition } from "@/models/structured_output";
 import { Config, getApplicationContext } from "@innobridge/memoizedsingleton";
