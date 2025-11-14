@@ -15,6 +15,7 @@
 - Code in TypeScript with two-space indent, trailing commas, and explicit exports. Use the `@/*` alias for internal imports to avoid relative path churn.
 - Adopt `PascalCase` for classes/interfaces, `camelCase` for functions/variables, and `kebab-case` filenames such as `workflow/graph-runner.ts`. Keep functions pure when viable and document observable side effects with brief JSDoc.
 - Defer to `docs/style-guide.md` for export conventions, alias usage, and other fine-grained formatting expectations.
+- Agents should surface their identity via the shared `AgentId` DTO (`{ name: string; id?: string }`). Implement `getId(): AgentId` when an agent has a stable identity so workflows can stamp provenance into `WorkflowId` metadata.
 
 ## Testing Guidelines
 - Default to Vitest globals (already injected via `tsconfig`); stub network clients through `vi.mock` to keep tests deterministic.

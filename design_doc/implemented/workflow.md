@@ -1,4 +1,4 @@
-# Workflow Engine
+# Workflow
 
 A workflow is a series of units of work executed in sequence (or with deliberate branching) to achieve a particular goal. Each unit is wrapped by a `State` instance that carries the resources and context it needs to do its job (LLM client handles, DTO inputs, cached outputs), and calling `state.run(...)` executes that unit of work. The workflow coordinates execution via `transition`: after a state finishes, `transition` selects the next unit to run, while `getHead()` always returns the current state so runners know which step is next. This loop continues until a terminal state signals completion. In this SDK the workflow engine aligns with the structured-output layer so workflows can publish schemas, hydrate from raw data, and participate in the same validation tooling as DTOs.
 
