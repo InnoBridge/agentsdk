@@ -53,10 +53,6 @@ class StateMachine extends Workflow {
     return this.head;
   }
 
-  getGraph() {
-    return new Map(this.transitions);
-  }
-
   async transition(currentState: State) {
     if (this.isTerminal(currentState)) return null;
     const lookup = this.transitions.get(currentState.constructor.name);
