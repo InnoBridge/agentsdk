@@ -7,6 +7,7 @@
 | [2](#2---tools) | 2025-10-21 | [Tools](../proposals/tools.md) | | [Implement Tools](https://github.com/InnoBridge/agentsdk/pull/3) |  |
 | [3](#3---structured-outputs) | 2025-10-31 | [Structured Output](./structured_output.md) | | [Implement Structured Output](https://github.com/InnoBridge/agentsdk/pull/4) |  |
 | | 2025-10-31 | [Structured Output](./structured_output.md) | | [Add enum support](https://github.com/InnoBridge/agentsdk/pull/5) |  |
+| [4](#4---workflow) | 2025-02-14 | [Workflow](./workflow.md) | | [Workflow Introduction](https://github.com/InnoBridge/agentsdk/pull/7) |  |
 
 <a id="1---llm-client"></a>
 
@@ -76,6 +77,19 @@ Highlights from [structured_output.md](./structured_output.md):
 - LLM integration: [`OllamaClient.toStructuredOutput`](../../src/client/ollama_client.ts) shows how schema generation, validation, and hydration plug into provider calls end-to-end.
 -- Records best practices and follow-up work (potential `anyOf` handling) alongside type-coercion behavior.
 -- Adds first-class enum support via an `enum` helper exported from `src/models/structured_output.ts`; see PR [Add enum support](https://github.com/InnoBridge/agentsdk/pull/5).
+
+
+<a id="4---workflow"></a>
+
+## 4. Workflow
+
+Summary of [workflow.md](./workflow.md):
+
+- Defines workflows as ordered sets of `State` units, each wrapping a unit of work (`state.run(...)`), with the `Workflow` base class (now extending `StructuredOutput`) coordinating transitions and IDs.
+- Documents the `StateMachine` runner that stores transitions, head pointer, and the `WorkflowId` (including optional `AgentId` provenance) used for observability and DTO hydration.
+- Introduces DTO-backed metadata: `AgentId` (with optional `userId`), the `@Work` decorator for workflow schemas, and reflection input DTOs (`Message`, `Input`, `ShouldReflect`) that normalize prompts.
+- Shows how workflows can be generated dynamically via `LLMClient.toStructuredOutput(input, ReflectWorkflow)` and executed immediately by `ReflectionAgent.run(prompt, workflow)`.
+- Lists forward-looking work such as a reusable workflow engine, paused workflows, history recording, observability, and validation hooks.
 
 
 
