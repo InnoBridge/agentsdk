@@ -37,10 +37,9 @@ const initializeOllama = () => {
 
 const initializeReflectionAgent = (): ReflectionAgent => {
     console.log("Initializing ReflectionAgent...");
-
-    return new ReflectionAgent();
-
+    const agent = new ReflectionAgent();
     console.log("ReflectionAgent initialized.");
+    return agent;
 };
 
 
